@@ -13,17 +13,17 @@ use std::path::{Component, Path, PathBuf};
 use axum::{debug_handler, routing::get, Form, Router};
 use axum::extract;
 use axum::response::Redirect;
-use tokio::fs;
 use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
 use serde::Deserialize;
-use crate::page::RenderedPage;
+use crate::auth::Access;
+use crate::metadata::Metadata;
+use crate::page::{RawPage, RenderedPage};
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 struct PagePathset {
-    pub metadata: PathBuf,
     pub content: PathBuf
 }
 
@@ -34,6 +34,9 @@ struct EditQuery {
 
 #[derive(Deserialize)]
 struct EditForm {
+    pub title: String,
+    pub view_access: Access,
+    pub edit_access: Access,
     pub cmark: String,
 }
 
@@ -56,6 +59,7 @@ async fn main() {
     axum::serve(listener, router).await.unwrap();
 }
 
+#[debug_handler]
 async fn get_handler(extract::Path(path): extract::Path<String>, edit: extract::Query<EditQuery>) -> RenderedPage {
     let pathset = match get_paths(&path) {
         None => return RenderedPage::not_found(render::not_found()),
@@ -67,15 +71,25 @@ async fn get_handler(extract::Path(path): extract::Path<String>, edit: extract::
 
 #[debug_handler]
 async fn post_content_handler(extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
-    println!("POSTING");
     let pathset = match get_paths(&path) {
         None => return Err(RenderedPage::not_found(render::not_found())),
         Some(paths) => paths
     };
 
-    match fs::write(&pathset.content, form.cmark.as_bytes()).await {
+    let metadata = Metadata {
+        title: form.title.clone(),
+        view_access: form.view_access.clone(),
+        edit_access: form.edit_access.clone(),
+    };
+
+    let raw_page = RawPage {
+        metadata,
+        markdown: form.cmark.clone(),
+    };
+
+    match raw_page.write_to_path(&pathset.content).await {
         Ok(_) => Ok(Redirect::to(&path)),
-        Err(err) => Err(err.into()),
+        Err(err) => Err(render::page_write_error(err).await),
     }
 }
 
@@ -90,10 +104,9 @@ fn get_paths(path: &str) -> Option<PagePathset> {
     };
 
     let base = Path::new("pages").join(&relative);
-    let metadata = base.with_extension("toml");
     let content = base.with_extension("md");
 
-    Some(PagePathset { metadata, content })
+    Some(PagePathset { content })
 }
 
 // Simplified version of tower's build_and_validate_path

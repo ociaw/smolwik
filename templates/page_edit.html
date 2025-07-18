@@ -1,7 +1,25 @@
 <html>
-<head><title>My Wiki</title></head>
+<head><title>{{ title }}</title></head>
 <body>
     <form method="POST">
+        <fieldset>
+        <div>
+            <h4>Page Title</h4>
+            <input name="title" id="title" type="text" value="{{ title }}" />
+        </div>
+        <div>
+            <h4>View Access</h4>
+            <label><input type="radio" name="view_access" value="Anonymous" id="view-anonymous" /> Anonymous</label>
+            <label><input type="radio" name="view_access" value="Authenticated" id="view-authenticated" /> Authenticated</label>
+            <label><input type="radio" name="view_access" value="Accounts" id="view-accounts" /> Accounts</label>
+        </div>
+        <div>
+            <h4>Edit Access</h4>
+            <label><input type="radio" name="edit_access" value="Anonymous" id="edit-anonymous" /> Anonymous</label>
+            <label><input type="radio" name="edit_access" value="Authenticated" id="edit-authenticated" /> Authenticated</label>
+            <label><input type="radio" name="edit_access" value="Accounts" id="edit-accounts" /> Accounts</label>
+        </div>
+        </fieldset>
         <textarea name="cmark">{{ raw_cmark }}</textarea>
         <button>Save changes</button>
     </form>
