@@ -8,6 +8,7 @@ mod render;
 mod page;
 mod metadata;
 mod auth;
+mod error_message;
 
 use std::path::{Component, Path, PathBuf};
 use axum::{debug_handler, routing::get, Form, Router};
@@ -19,17 +20,26 @@ use tower_http::{
 };
 use serde::Deserialize;
 use crate::auth::Access;
+use crate::error_message::ErrorMessage;
 use crate::metadata::Metadata;
 use crate::page::{RawPage, RenderedPage};
+use crate::render::Renderer;
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 struct PagePathset {
     pub content: PathBuf
 }
 
+#[derive(Deserialize, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
+enum Mode {
+    Read,
+    Edit,
+    Create,
+}
+
 #[derive(Deserialize)]
-struct EditQuery {
-    pub edit: Option<bool>,
+struct PageQuery {
+    pub mode: Option<Mode>,
 }
 
 #[derive(Deserialize)]
@@ -40,8 +50,8 @@ struct EditForm {
     pub cmark: String,
 }
 
-impl Default for EditQuery {
-    fn default() -> Self { EditQuery { edit: None }}
+impl Default for PageQuery {
+    fn default() -> Self { PageQuery { mode: Option::from(Mode::Read) }}
 }
 
 #[tokio::main]
@@ -60,19 +70,35 @@ async fn main() {
 }
 
 #[debug_handler]
-async fn get_handler(extract::Path(path): extract::Path<String>, edit: extract::Query<EditQuery>) -> RenderedPage {
+async fn get_handler(extract::Path(path): extract::Path<String>, mode: extract::Query<PageQuery>) -> RenderedPage {
+    let renderer = Renderer::new("templates/**/*").unwrap();
     let pathset = match get_paths(&path) {
-        None => return RenderedPage::not_found(render::not_found()),
+        None => return RenderedPage::not_found(renderer.render_error(&ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
 
-    get_page(pathset, edit.edit.unwrap_or(false)).await
+    let template = match mode.mode.unwrap_or(Mode::Read) {
+        Mode::Read => "page.html",
+        Mode::Edit | Mode::Create => "page_edit.html",
+    };
+
+    match RawPage::read_from_path(&pathset.content).await {
+        Ok(raw) => match renderer.render_page(&raw, template) {
+            Ok(html) => RenderedPage::ok(raw.metadata, html),
+            Err(err) => RenderedPage::internal_error(renderer.render_error(&err.into()))
+        },
+        Err(err) => {
+            let err = ErrorMessage::from(err);
+            RenderedPage::error(&err, renderer.render_error(&err))
+        }
+    }
 }
 
 #[debug_handler]
 async fn post_content_handler(extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
+    let renderer = Renderer::new("templates/**/*").unwrap();
     let pathset = match get_paths(&path) {
-        None => return Err(RenderedPage::not_found(render::not_found())),
+        None => return Err(RenderedPage::not_found(renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
         Some(paths) => paths
     };
 
@@ -89,12 +115,11 @@ async fn post_content_handler(extract::Path(path): extract::Path<String>, form: 
 
     match raw_page.write_to_path(&pathset.content).await {
         Ok(_) => Ok(Redirect::to(&path)),
-        Err(err) => Err(render::page_write_error(err).await),
+        Err(err) => {
+            let err = ErrorMessage::from(err);
+            Err(RenderedPage::error(&err, renderer.render_error(&err)))
+        },
     }
-}
-
-async fn get_page(pathset: PagePathset, editable: bool) -> RenderedPage {
-    render::page(&pathset, editable).await.unwrap_or_else(|err| err.into())
 }
 
 fn get_paths(path: &str) -> Option<PagePathset> {

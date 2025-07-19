@@ -1,12 +1,12 @@
-use std::path::Path;
+use crate::error_message::ErrorMessage;
+use crate::metadata::Metadata;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
+use std::path::Path;
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Error, ErrorKind};
-use crate::metadata::Metadata;
-use crate::render;
 
 const METADATA_START: &'static str = "<!-- BEGIN METADATA\n";
 const METADATA_END: &'static str = "END METADATA -->\n";
@@ -19,18 +19,23 @@ pub struct RenderedPage {
 }
 
 impl RenderedPage {
-    pub fn ok(metadata: Metadata, html: String) -> RenderedPage {
+    pub fn error(error: &ErrorMessage, html: String) -> RenderedPage {
+        let metadata = match error.status_code {
+            StatusCode::NOT_FOUND => Metadata::not_found(),
+            StatusCode::BAD_REQUEST => Metadata::bad_request(),
+            StatusCode::INTERNAL_SERVER_ERROR | _ => Metadata::internal_error(),
+        };
         RenderedPage {
             metadata,
-            status_code: StatusCode::OK,
+            status_code: error.status_code,
             html: Html(html),
         }
     }
 
-    pub fn bad_request(html: String) -> RenderedPage {
+    pub fn ok(metadata: Metadata, html: String) -> RenderedPage {
         RenderedPage {
-            metadata: Metadata::bad_request(),
-            status_code: StatusCode::BAD_REQUEST,
+            metadata,
+            status_code: StatusCode::OK,
             html: Html(html),
         }
     }
@@ -67,26 +72,6 @@ impl IntoResponse for RenderedPage {
         let mut response = self.html.into_response();
         *response.status_mut() = self.status_code;
         response
-    }
-}
-
-impl From<PageReadError> for RenderedPage {
-    fn from(value: PageReadError) -> Self {
-        match value {
-            PageReadError::NotFound => RenderedPage::not_found(render::not_found()),
-            // TODO: Log these cases
-            _ => RenderedPage::internal_error(render::generic_error_message(&value.to_string())),
-        }
-    }
-}
-
-impl From<PageWriteError> for RenderedPage {
-    fn from(value: PageWriteError) -> Self {
-        match value {
-            PageWriteError::InvalidPath => RenderedPage::bad_request(render::bad_request()),
-            // TODO: Log these cases
-            _ => RenderedPage::internal_error(render::generic_error_message(&value.to_string())),
-        }
     }
 }
 
@@ -152,15 +137,6 @@ impl RawPage {
         file.write_all(METADATA_END.as_bytes()).await?;
         file.write_all(self.markdown.as_bytes()).await?;
         Ok(())
-    }
-
-    pub fn to_string(&self) -> String {
-        let metadata = serde_json::to_string(&self.metadata).expect("Failed to serialize metadata");
-        format!(
-r"<!-- BEGIN METADATA
-{}
-END METADATA -->
-{}", metadata, self.markdown)
     }
 }
 
