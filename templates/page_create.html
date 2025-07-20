@@ -1,0 +1,33 @@
+<html>
+<head>
+    <link href="assets/default.css" rel="stylesheet" />
+    <title>{{ title }}</title>
+</head>
+<body>
+    <h1>Create a New Page</h1>
+    <form method="POST">
+        <fieldset>
+        <div>
+            <h4>Page Slug</h4>
+            <input name="path" id="path" type="text" value="{{ path | default(value='') }}" />
+            <h4>Page Title</h4>
+            <input name="title" id="title" type="text" value="{{ title }}" />
+        </div>
+        <div>
+            <h4>View Access</h4>
+            <label><input type="radio" name="view_access" value="Anonymous" id="view-anonymous" /> Anonymous</label>
+            <label><input type="radio" name="view_access" value="Authenticated" id="view-authenticated" /> Authenticated</label>
+            <label><input type="radio" name="view_access" value="Accounts" id="view-accounts" /> Accounts</label>
+        </div>
+        <div>
+            <h4>Edit Access</h4>
+            <label><input type="radio" name="edit_access" value="Anonymous" id="edit-anonymous" /> Anonymous</label>
+            <label><input type="radio" name="edit_access" value="Authenticated" id="edit-authenticated" /> Authenticated</label>
+            <label><input type="radio" name="edit_access" value="Accounts" id="edit-accounts" /> Accounts</label>
+        </div>
+        </fieldset>
+        <textarea name="cmark">{{ raw_cmark }}</textarea>
+        <button>Save changes</button>
+    </form>
+</body>
+</html>

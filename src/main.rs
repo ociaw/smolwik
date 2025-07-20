@@ -11,8 +11,10 @@ mod auth;
 mod error_message;
 
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use axum::{debug_handler, routing::get, Form, Router};
 use axum::extract;
+use axum::extract::State;
 use axum::response::Redirect;
 use tower_http::{
     services::ServeDir,
@@ -25,6 +27,11 @@ use crate::metadata::Metadata;
 use crate::page::{RawPage, RenderedPage};
 use crate::render::Renderer;
 
+#[derive(Clone)]
+struct AppState {
+    pub renderer: Arc<Renderer>,
+}
+
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 struct PagePathset {
     pub content: PathBuf
@@ -34,7 +41,6 @@ struct PagePathset {
 enum Mode {
     Read,
     Edit,
-    Create,
 }
 
 #[derive(Deserialize)]
@@ -50,16 +56,29 @@ struct EditForm {
     pub cmark: String,
 }
 
+#[derive(Deserialize)]
+struct CreateForm {
+    pub path: String,
+    pub title: String,
+    pub view_access: Access,
+    pub edit_access: Access,
+    pub cmark: String,
+}
+
 impl Default for PageQuery {
     fn default() -> Self { PageQuery { mode: Option::from(Mode::Read) }}
 }
 
 #[tokio::main]
 async fn main() {
+    let state = AppState { renderer: Renderer::new("templates/**/*").unwrap().into() };
+
     // build our application with a route
     let router = Router::new()
-        .route("/{*path}", get(get_handler).post(post_content_handler))
-        .nest_service("/assets", ServeDir::new("assets"));
+        .route("/special:create", get(get_create_handler).post(post_create_handler))
+        .route("/{*path}", get(get_page_handler).post(post_edit_handler))
+        .nest_service("/assets", ServeDir::new("assets"))
+        .with_state(state);
 
     // run it
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
@@ -70,35 +89,34 @@ async fn main() {
 }
 
 #[debug_handler]
-async fn get_handler(extract::Path(path): extract::Path<String>, mode: extract::Query<PageQuery>) -> RenderedPage {
-    let renderer = Renderer::new("templates/**/*").unwrap();
+async fn get_page_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, query: extract::Query<PageQuery>) -> RenderedPage {
     let pathset = match get_paths(&path) {
-        None => return RenderedPage::not_found(renderer.render_error(&ErrorMessage::not_found(&path))),
+        None => return RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
 
-    let template = match mode.mode.unwrap_or(Mode::Read) {
+    let mode = query.mode.unwrap_or(Mode::Read);
+
+    let template = match mode {
         Mode::Read => "page.html",
-        Mode::Edit | Mode::Create => "page_edit.html",
+        Mode::Edit => "page_edit.html",
     };
 
-    match RawPage::read_from_path(&pathset.content).await {
-        Ok(raw) => match renderer.render_page(&raw, template) {
-            Ok(html) => RenderedPage::ok(raw.metadata, html),
-            Err(err) => RenderedPage::internal_error(renderer.render_error(&err.into()))
-        },
+    let raw = match RawPage::read_from_path(&pathset.content).await {
+        Ok(raw) => raw,
         Err(err) => {
             let err = ErrorMessage::from(err);
-            RenderedPage::error(&err, renderer.render_error(&err))
+            return RenderedPage::error(&err, state.renderer.render_error(&err))
         }
-    }
+    };
+
+    render_page(state, raw, template)
 }
 
 #[debug_handler]
-async fn post_content_handler(extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
-    let renderer = Renderer::new("templates/**/*").unwrap();
+async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
     let pathset = match get_paths(&path) {
-        None => return Err(RenderedPage::not_found(renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
+        None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
         Some(paths) => paths
     };
 
@@ -117,8 +135,50 @@ async fn post_content_handler(extract::Path(path): extract::Path<String>, form: 
         Ok(_) => Ok(Redirect::to(&path)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(RenderedPage::error(&err, renderer.render_error(&err)))
+            Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
         },
+    }
+}
+
+#[debug_handler]
+async fn get_create_handler(State(state): State<AppState>) -> RenderedPage {
+    let template = "page_create.html";
+    let raw = RawPage::default();
+    render_page(state, raw, template)
+}
+
+#[debug_handler]
+async fn post_create_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
+    let path = &form.path;
+    let pathset = match get_paths(path) {
+        None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
+        Some(paths) => paths
+    };
+
+    let metadata = Metadata {
+        title: form.title.clone(),
+        view_access: form.view_access.clone(),
+        edit_access: form.edit_access.clone(),
+    };
+
+    let raw_page = RawPage {
+        metadata,
+        markdown: form.cmark.clone(),
+    };
+
+    match raw_page.write_to_path(&pathset.content).await {
+        Ok(_) => Ok(Redirect::to(&path)),
+        Err(err) => {
+            let err = ErrorMessage::from(err);
+            Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
+        },
+    }
+}
+
+fn render_page(state: AppState, raw: RawPage, template: &str) -> RenderedPage {
+    match state.renderer.render_page(&raw, template) {
+        Ok(html) => RenderedPage::ok(raw.metadata, html),
+        Err(err) => RenderedPage::internal_error(state.renderer.render_error(&err.into()))
     }
 }
 

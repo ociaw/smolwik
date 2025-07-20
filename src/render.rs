@@ -2,6 +2,7 @@ use crate::error_message::ErrorMessage;
 use crate::page::RawPage;
 use tera::{Context, Tera};
 
+#[derive(Clone)]
 pub struct Renderer {
     tera: Tera,
 }

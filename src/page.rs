@@ -75,7 +75,7 @@ impl IntoResponse for RenderedPage {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RawPage {
     pub metadata: Metadata,
     pub markdown: String,
@@ -123,6 +123,10 @@ impl RawPage {
     }
 
     pub async fn write_to_path(&self, path: &Path) -> Result<(), PageWriteError> {
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+
         let file = File::create(path).await?;
         Ok(self.write(file).await?)
     }
