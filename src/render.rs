@@ -1,3 +1,4 @@
+use pulldown_cmark::Options;
 use crate::error_message::ErrorMessage;
 use crate::page::RawPage;
 use tera::{Context, Tera};
@@ -26,7 +27,7 @@ impl Renderer {
         context.insert("title", &raw.metadata.title);
         context.insert("raw_cmark", &raw.markdown);
 
-        let parser = pulldown_cmark::Parser::new(&raw.markdown);
+        let parser = pulldown_cmark::Parser::new_ext(&raw.markdown, Options::all());
         let mut rendered_cmark = String::new();
         pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
 
