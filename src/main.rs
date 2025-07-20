@@ -30,11 +30,13 @@ use crate::render::Renderer;
 #[derive(Clone)]
 struct AppState {
     pub renderer: Arc<Renderer>,
+    pub pages_dir: PathBuf,
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 struct PagePathset {
-    pub content: PathBuf
+    pub url: String,
+    pub md: PathBuf,
 }
 
 #[derive(Deserialize, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -71,17 +73,24 @@ impl Default for PageQuery {
 
 #[tokio::main]
 async fn main() {
-    let state = AppState { renderer: Renderer::new("templates/**/*").unwrap().into() };
+    // TODO: Read these from a config file
+    let pages_dir = "pages/";
+    let assets_dir = "assets/";
+    let bind_address = "127.0.0.1:8080";
+    let state = AppState {
+        renderer: Renderer::new("templates/**/*").unwrap().into(),
+        pages_dir: PathBuf::from(pages_dir),
+    };
 
     // build our application with a route
     let router = Router::new()
         .route("/special:create", get(get_create_handler).post(post_create_handler))
         .route("/{*path}", get(get_page_handler).post(post_edit_handler))
-        .nest_service("/assets", ServeDir::new("assets"))
+        .nest_service("/assets", ServeDir::new(assets_dir))
         .with_state(state);
 
     // run it
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
+    let listener = tokio::net::TcpListener::bind(bind_address)
         .await
         .unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
@@ -90,7 +99,7 @@ async fn main() {
 
 #[debug_handler]
 async fn get_page_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, query: extract::Query<PageQuery>) -> RenderedPage {
-    let pathset = match get_paths(&path) {
+    let pathset = match get_paths(&state.pages_dir, &path) {
         None => return RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
@@ -102,7 +111,7 @@ async fn get_page_handler(State(state): State<AppState>, extract::Path(path): ex
         Mode::Edit => "page_edit.html",
     };
 
-    let raw = match RawPage::read_from_path(&pathset.content).await {
+    let raw = match RawPage::read_from_path(&pathset.md).await {
         Ok(raw) => raw,
         Err(err) => {
             let err = ErrorMessage::from(err);
@@ -115,7 +124,7 @@ async fn get_page_handler(State(state): State<AppState>, extract::Path(path): ex
 
 #[debug_handler]
 async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
-    let pathset = match get_paths(&path) {
+    let pathset = match get_paths(&state.pages_dir, &path) {
         None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
         Some(paths) => paths
     };
@@ -131,8 +140,8 @@ async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): e
         markdown: form.cmark.clone(),
     };
 
-    match raw_page.write_to_path(&pathset.content).await {
-        Ok(_) => Ok(Redirect::to(&path)),
+    match raw_page.write_to_path(&pathset.md).await {
+        Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
             Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
@@ -150,7 +159,7 @@ async fn get_create_handler(State(state): State<AppState>) -> RenderedPage {
 #[debug_handler]
 async fn post_create_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
     let path = &form.path;
-    let pathset = match get_paths(path) {
+    let pathset = match get_paths(&state.pages_dir, path) {
         None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
         Some(paths) => paths
     };
@@ -166,8 +175,8 @@ async fn post_create_handler(State(state): State<AppState>, form: Form<CreateFor
         markdown: form.cmark.clone(),
     };
 
-    match raw_page.write_to_path(&pathset.content).await {
-        Ok(_) => Ok(Redirect::to(&path)),
+    match raw_page.write_to_path(&pathset.md).await {
+        Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
             Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
@@ -182,23 +191,24 @@ fn render_page(state: AppState, raw: RawPage, template: &str) -> RenderedPage {
     }
 }
 
-fn get_paths(path: &str) -> Option<PagePathset> {
-    let relative = match validate_path(&path) {
+fn get_paths(pages_root: &Path, path: &str) -> Option<PagePathset> {
+    let (relative, url) = match validate_path(&path) {
         None => return None,
         Some(relative) => relative,
     };
 
-    let base = Path::new("pages").join(&relative);
-    let content = base.with_extension("md");
+    let base = pages_root.join(&relative);
+    let markdown = base.with_extension("md");
+    let url = { let mut str = String::from("/"); str.push_str(url); str };
 
-    Some(PagePathset { content })
+    Some(PagePathset { url: url, md: markdown })
 }
 
 // Simplified version of tower's build_and_validate_path
 // https://github.com/tower-rs/tower-http/blob/075479b852f348c8b74245f478b9012090acf5fc/tower-http/src/services/fs/serve_dir/mod.rs#L453
-fn validate_path(requested_path: &str) -> Option<PathBuf> {
-    let path = requested_path.trim_start_matches('/');
-    let path = Path::new(&*path);
+fn validate_path(requested_path: &str) -> Option<(PathBuf, &str)> {
+    let path_str = requested_path.trim_start_matches('/');
+    let path = Path::new(&path_str);
 
     for component in path.components() {
         match component {
@@ -217,5 +227,5 @@ fn validate_path(requested_path: &str) -> Option<PathBuf> {
         }
     }
 
-    Some(path.to_path_buf())
+    Some((path.to_path_buf(), path_str))
 }
