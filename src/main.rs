@@ -100,7 +100,7 @@ async fn main() {
 #[debug_handler]
 async fn get_page_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, query: extract::Query<PageQuery>) -> RenderedPage {
     let pathset = match get_paths(&state.pages_dir, &path) {
-        None => return RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(&path))),
+        None => return render_error(state, ErrorMessage::not_found(&path)),
         Some(paths) => paths
     };
 
@@ -125,7 +125,7 @@ async fn get_page_handler(State(state): State<AppState>, extract::Path(path): ex
 #[debug_handler]
 async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
     let pathset = match get_paths(&state.pages_dir, &path) {
-        None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
+        None => return Err(render_error(state, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
 
@@ -144,7 +144,7 @@ async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): e
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
+            Err(render_error(state, ErrorMessage::from(err)))
         },
     }
 }
@@ -160,7 +160,7 @@ async fn get_create_handler(State(state): State<AppState>) -> RenderedPage {
 async fn post_create_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
     let path = &form.path;
     let pathset = match get_paths(&state.pages_dir, path) {
-        None => return Err(RenderedPage::not_found(state.renderer.render_error(&ErrorMessage::not_found(path.as_str())))),
+        None => return Err(render_error(state, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
 
@@ -177,10 +177,7 @@ async fn post_create_handler(State(state): State<AppState>, form: Form<CreateFor
 
     match raw_page.write_to_path(&pathset.md).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => {
-            let err = ErrorMessage::from(err);
-            Err(RenderedPage::error(&err, state.renderer.render_error(&err)))
-        },
+        Err(err) => Err(render_error(state, ErrorMessage::from(err)))
     }
 }
 
@@ -189,6 +186,10 @@ fn render_page(state: AppState, raw: RawPage, template: &str) -> RenderedPage {
         Ok(html) => RenderedPage::ok(raw.metadata, html),
         Err(err) => RenderedPage::internal_error(state.renderer.render_error(&err.into()))
     }
+}
+
+fn render_error(state: AppState, error: ErrorMessage) -> RenderedPage {
+    RenderedPage::error(&error, state.renderer.render_error(&error))
 }
 
 fn get_paths(pages_root: &Path, path: &str) -> Option<PagePathset> {
@@ -209,6 +210,9 @@ fn get_paths(pages_root: &Path, path: &str) -> Option<PagePathset> {
 fn validate_path(requested_path: &str) -> Option<(PathBuf, &str)> {
     let path_str = requested_path.trim_start_matches('/');
     let path = Path::new(&path_str);
+    if path_str.starts_with("special:") {
+        return None;
+    }
 
     for component in path.components() {
         match component {
