@@ -107,8 +107,8 @@ async fn get_page_handler(State(state): State<AppState>, extract::Path(path): ex
     let mode = query.mode.unwrap_or(Mode::Read);
 
     let template = match mode {
-        Mode::Read => "page.html",
-        Mode::Edit => "page_edit.html",
+        Mode::Read => "page.tera",
+        Mode::Edit => "page_edit.tera",
     };
 
     let raw = match RawPage::read_from_path(&pathset.md).await {
@@ -151,7 +151,7 @@ async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): e
 
 #[debug_handler]
 async fn get_create_handler(State(state): State<AppState>) -> RenderedPage {
-    let template = "page_create.html";
+    let template = "page_create.tera";
     let raw = RawPage::default();
     render_page(state, raw, template)
 }

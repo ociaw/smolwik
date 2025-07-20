@@ -12,19 +12,21 @@ impl Renderer {
     pub fn new(dir: &str) -> Result<Renderer, tera::Error> {
         let mut tera = Tera::new(dir)?;
         // Default error template used when an error occurs. Only add if an error template hasn't
-        // been found int he directory.
+        // been found in the directory.
         if !tera.get_template_names().any(|t| t.eq("error")) {
-            tera.add_raw_template("error", include_str!("../templates/error.html")).unwrap();
+            tera.add_raw_template("error", include_str!("../templates/error.tera")).unwrap();
         }
         // This template is added last to ensure that it is always available. If the error template
         // fails to render, this template will be used instead.
-        tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.html")).unwrap();
+        tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.tera")).unwrap();
         Ok(Renderer { tera })
     }
 
     pub fn render_page(&self, raw: &RawPage, template: &str) -> Result<String, tera::Error> {
         let mut context = Context::new();
         context.insert("title", &raw.metadata.title);
+        context.insert("view_access", raw.metadata.view_access.variant_string());
+        context.insert("edit_access", raw.metadata.edit_access.variant_string());
         context.insert("raw_cmark", &raw.markdown);
 
         let parser = pulldown_cmark::Parser::new_ext(&raw.markdown, Options::all());
@@ -48,7 +50,7 @@ impl Renderer {
     fn render_error_fallback(err: tera::Error) -> String {
         let mut context = Context::new();
         context.insert("template_error", &err.to_string());
-        Tera::default().render_str(include_str!("../templates/error_fallback.html"), &context)
+        Tera::default().render_str(include_str!("../templates/error_fallback.tera"), &context)
             .expect("Failed to render error fallback template")
     }
 }

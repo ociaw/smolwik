@@ -42,3 +42,13 @@ pub enum Access {
     /// The username of the authenticated user must be contained in the list of usernames to have access.
     Accounts(Vec<Username>),
 }
+
+impl Access {
+    pub fn variant_string(&self) -> &'static str {
+        match self {
+            Access::Anonymous => "anonymous",
+            Access::Authenticated => "authenticated",
+            Access::Accounts(_) => "accounts",
+        }
+    }
+}

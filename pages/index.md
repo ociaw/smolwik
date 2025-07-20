@@ -1,7 +1,7 @@
 <!-- BEGIN METADATA
 {
   "title": "My wiki",
-  "edit_access": "Anonymous",
+  "edit_access": "Authenticated",
   "view_access": "Anonymous"
 }END METADATA -->
 # Welcome!

@@ -1,0 +1,31 @@
+<html>
+<head>
+    <link href="assets/default.css" rel="stylesheet" />
+    <title>{{ title }}</title>
+</head>
+<body>
+    <form method="POST">
+        <fieldset>
+        <div>
+            <h4>Page Title</h4>
+            <input name="title" id="title" type="text" value="{{ title }}" />
+        </div>
+        <div>
+            <h4>View Access</h4>
+            <label><input type="radio" name="view_access" value="Anonymous" id="view-anonymous" {% if view_access == "anonymous" %}checked{% endif %} /> Anonymous</label>
+            <label><input type="radio" name="view_access" value="Authenticated" id="view-authenticated" {% if view_access == "authenticated" %}checked{% endif %} /> Authenticated</label>
+            <label><input type="radio" name="view_access" value="Accounts" id="view-accounts" {% if view_access == "accounts" %}checked{% endif %} /> Accounts</label>
+        </div>
+        <div>
+            <h4>Edit Access</h4>
+            <label><input type="radio" name="edit_access" value="Anonymous" id="edit-anonymous" {% if edit_access == "anonymous" %}checked{% endif %} /> Anonymous</label>
+            <label><input type="radio" name="edit_access" value="Authenticated" id="edit-authenticated" {% if edit_access == "authenticated" %}checked{% endif %} /> Authenticated</label>
+            <label><input type="radio" name="edit_access" value="Accounts" id="edit-accounts" {% if edit_access == "accounts" %}checked{% endif %} /> Accounts</label>
+
+        </div>
+        </fieldset>
+        <textarea name="cmark">{{ raw_cmark }}</textarea>
+        <button>Save changes</button>
+    </form>
+</body>
+</html>
