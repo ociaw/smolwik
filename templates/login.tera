@@ -1,0 +1,29 @@
+<html>
+<head>
+    <link href="assets/default.css" rel="stylesheet" />
+    <title>Login</title>
+</head>
+<body>
+<main>
+    {% if auth_mode == "anonymous" %}
+        <h1>Login Disabled</h1>
+    {% else %}
+    <form method="POST">
+        <fieldset>
+            {% if auth_mode != "single" %}
+            <div>
+                <h4>Username</h4>
+                <input name="username" id="username" type="text" />
+            </div>
+            {% endif %}
+            <div>
+                <h4>Password</h4>
+                <input name="password" id="password" type="password" />
+            </div>
+        </fieldset>
+        <button>Login</button>
+    </form>
+    {% endif %}
+</main>
+</body>
+</html>

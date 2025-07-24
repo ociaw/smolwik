@@ -1,0 +1,10 @@
+{
+  "single_password": null,
+  "accounts":
+    [
+      {
+        "username": "demo",
+        "password": null
+      }
+    ]
+}

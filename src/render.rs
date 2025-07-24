@@ -1,7 +1,6 @@
 use pulldown_cmark::Options;
-use crate::error_message::ErrorMessage;
-use crate::page::RawPage;
 use tera::{Context, Tera};
+use crate::*;
 
 #[derive(Clone)]
 pub struct Renderer {
@@ -20,6 +19,14 @@ impl Renderer {
         // fails to render, this template will be used instead.
         tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.tera")).unwrap();
         Ok(Renderer { tera })
+    }
+
+    pub fn render_template(&self, state: &AppState, template: &str, title: &str) -> Result<String, tera::Error> {
+        let mut context = Context::new();
+        context.insert("title", title);
+        context.insert("auth_mode", state.auth_mod.variant_string());
+
+        Ok(self.tera.render(template, &context)?)
     }
 
     pub fn render_page(&self, raw: &RawPage, template: &str) -> Result<String, tera::Error> {

@@ -1,5 +1,6 @@
 use crate::page::{PageReadError, PageWriteError};
 use axum::http::StatusCode;
+use crate::auth::ConfigError;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorMessage {
@@ -9,18 +10,51 @@ pub struct ErrorMessage {
 }
 
 impl ErrorMessage {
-    pub fn not_found(path: &str) -> Self {
-        ErrorMessage {
-            status_code: StatusCode::NOT_FOUND,
-            title: "Page not found".to_owned(),
-            details: format!("The requested path could not be found: {}", path),
-        }
-    }
     pub fn bad_request() -> Self {
         ErrorMessage {
             status_code: StatusCode::BAD_REQUEST,
             title: "Bad request".to_owned(),
             details: "Invalid data in request.".to_owned()
+        }
+    }
+
+    pub fn unauthenticated() -> Self {
+        ErrorMessage {
+            status_code: StatusCode::UNAUTHORIZED,
+            title: "Authentication required".to_owned(),
+            details: "Authentication is required to view this page, please log in.".to_owned()
+        }
+    }
+
+    pub fn invalid_credentials() -> Self {
+        ErrorMessage {
+            status_code: StatusCode::UNAUTHORIZED,
+            title: "Invalid credentials".to_owned(),
+            details: "Invalid username or password provided.".to_owned()
+        }
+    }
+    
+    pub fn already_authenticated() -> Self {
+        ErrorMessage {
+            status_code: StatusCode::BAD_REQUEST,
+            title: "Already logged in".to_owned(),
+            details: "You are already logged in.".to_owned(),
+        }
+    }
+
+    pub fn forbidden() -> Self {
+        ErrorMessage {
+            status_code: StatusCode::FORBIDDEN,
+            title: "Access forbidden".to_owned(),
+            details: "Access to this page is forbidden.".to_owned()
+        }
+    }
+
+    pub fn not_found(path: &str) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::NOT_FOUND,
+            title: "Page not found".to_owned(),
+            details: format!("The requested path could not be found: {}", path),
         }
     }
 
@@ -53,6 +87,12 @@ impl From<PageReadError> for ErrorMessage {
             PageReadError::NotFound => Self::not_found(""),
             _ => Self::internal_error(value.to_string()),
         }
+    }
+}
+
+impl From<ConfigError> for ErrorMessage {
+    fn from(value: ConfigError) -> Self {
+        Self::internal_error(value.to_string())
     }
 }
 

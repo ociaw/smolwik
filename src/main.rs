@@ -9,19 +9,22 @@ mod page;
 mod metadata;
 mod auth;
 mod error_message;
+mod login;
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use axum::{debug_handler, routing::get, Form, Router};
 use axum::extract;
-use axum::extract::State;
-use axum::response::Redirect;
+use axum::extract::{FromRef, State};
+use axum::response::{Html, Redirect};
+use axum_extra::extract::cookie::Key;
+use axum_extra::extract::SignedCookieJar;
 use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
 use serde::Deserialize;
-use crate::auth::Access;
+use crate::auth::*;
 use crate::error_message::ErrorMessage;
 use crate::metadata::Metadata;
 use crate::page::{RawPage, RenderedPage};
@@ -31,6 +34,14 @@ use crate::render::Renderer;
 struct AppState {
     pub renderer: Arc<Renderer>,
     pub pages_dir: PathBuf,
+    pub auth_mod: AuthenticationMode,
+    pub key: Key
+}
+
+impl FromRef<AppState> for Key {
+    fn from_ref(input: &AppState) -> Self {
+        input.key.clone()
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -73,19 +84,23 @@ impl Default for PageQuery {
 
 #[tokio::main]
 async fn main() {
-    // TODO: Read these from a config file
+    // TODO: Read from a config file
     let pages_dir = "pages/";
     let assets_dir = "assets/";
     let bind_address = "127.0.0.1:8080";
     let state = AppState {
         renderer: Renderer::new("templates/**/*").unwrap().into(),
         pages_dir: PathBuf::from(pages_dir),
+        auth_mod: AuthenticationMode::Single,
+        // TODO: Generate with a CSPRNG
+        key: Key::from(b"0123456701234567012345670123456701234567012345670123456701234567"),
     };
 
     // build our application with a route
     let router = Router::new()
-        .route("/special:create", get(get_create_handler).post(post_create_handler))
-        .route("/{*path}", get(get_page_handler).post(post_edit_handler))
+        .route("/special:login", get(login::get).post(login::post))
+        .route("/special:create", get(create_get_handler).post(create_post_handler))
+        .route("/{*path}", get(page_get_handler).put(page_put_handler))
         .nest_service("/assets", ServeDir::new(assets_dir))
         .with_state(state);
 
@@ -98,36 +113,58 @@ async fn main() {
 }
 
 #[debug_handler]
-async fn get_page_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, query: extract::Query<PageQuery>) -> RenderedPage {
+async fn page_get_handler(
+    State(state): State<AppState>,
+    extract::Path(path): extract::Path<String>,
+    query: extract::Query<PageQuery>,
+    jar: SignedCookieJar,
+) -> RenderedPage {
     let pathset = match get_paths(&state.pages_dir, &path) {
         None => return render_error(state, ErrorMessage::not_found(&path)),
         Some(paths) => paths
     };
 
-    let mode = query.mode.unwrap_or(Mode::Read);
+    let raw = match RawPage::read_from_path(&pathset.md).await {
+        Ok(raw) => raw,
+        Err(err) => return render_error(state, err.into())
+    };
 
+    match User::from(jar).check_authorization(&raw.metadata.view_access) {
+        Authorization::Unauthorized => return render_error(state, ErrorMessage::forbidden()),
+        Authorization::AuthenticationRequired => return render_error(state, ErrorMessage::unauthenticated()),
+        _ => ()
+    }
+
+    let mode = query.mode.unwrap_or(Mode::Read);
     let template = match mode {
         Mode::Read => "page.tera",
         Mode::Edit => "page_edit.tera",
     };
-
-    let raw = match RawPage::read_from_path(&pathset.md).await {
-        Ok(raw) => raw,
-        Err(err) => {
-            let err = ErrorMessage::from(err);
-            return RenderedPage::error(&err, state.renderer.render_error(&err))
-        }
-    };
-
     render_page(state, raw, template)
 }
 
 #[debug_handler]
-async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): extract::Path<String>, form: Form<EditForm>) -> Result<Redirect, RenderedPage> {
+async fn page_put_handler(
+    State(state): State<AppState>,
+    extract::Path(path): extract::Path<String>,
+    jar: SignedCookieJar,
+    form: Form<EditForm>
+) -> Result<Redirect, RenderedPage> {
     let pathset = match get_paths(&state.pages_dir, &path) {
         None => return Err(render_error(state, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
+
+    let raw = match RawPage::read_from_path(&pathset.md).await {
+        Ok(raw) => raw,
+        Err(err) => return Err(render_error(state, err.into()))
+    };
+
+    match User::from(jar).check_authorization(&raw.metadata.edit_access) {
+        Authorization::Unauthorized => return Err(render_error(state, ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => return Err(render_error(state, ErrorMessage::unauthenticated())),
+        _ => ()
+    }
 
     let metadata = Metadata {
         title: form.title.clone(),
@@ -150,19 +187,22 @@ async fn post_edit_handler(State(state): State<AppState>, extract::Path(path): e
 }
 
 #[debug_handler]
-async fn get_create_handler(State(state): State<AppState>) -> RenderedPage {
+async fn create_get_handler(State(state): State<AppState>) -> RenderedPage {
+    // TODO: Check if user is allowed to create pages.
     let template = "page_create.tera";
     let raw = RawPage::default();
     render_page(state, raw, template)
 }
 
 #[debug_handler]
-async fn post_create_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
+async fn create_post_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
     let path = &form.path;
     let pathset = match get_paths(&state.pages_dir, path) {
         None => return Err(render_error(state, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
+
+    // TODO: Check if user is allowed to create pages.
 
     let metadata = Metadata {
         title: form.title.clone(),
@@ -185,6 +225,13 @@ fn render_page(state: AppState, raw: RawPage, template: &str) -> RenderedPage {
     match state.renderer.render_page(&raw, template) {
         Ok(html) => RenderedPage::ok(raw.metadata, html),
         Err(err) => RenderedPage::internal_error(state.renderer.render_error(&err.into()))
+    }
+}
+
+fn render_template(state: AppState, template: &str, title: &str) -> Html<String> {
+    match state.renderer.render_template(&state, template, title) {
+        Ok(html) => Html(html),
+        Err(err) => Html(state.renderer.render_error(&err.into()))
     }
 }
 

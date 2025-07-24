@@ -91,7 +91,6 @@ impl RawPage {
     pub async fn from_reader<R>(mut reader: R) -> Result<RawPage, PageReadError>
         where R: io::AsyncBufRead + Unpin
     {
-
         let mut str = String::new();
         reader.read_line(&mut str).await?;
         if !str.eq(METADATA_START) {
