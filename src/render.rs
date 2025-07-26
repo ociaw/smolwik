@@ -65,7 +65,7 @@ impl Renderer {
 impl Default for Renderer {
     fn default() -> Self {
         let mut tera = Tera::default();
-        tera.add_raw_template("error",     r"
+        tera.add_raw_template("error", r"
 <html>
 <head><title>{{ title }}</title></head>
 <body>

@@ -100,7 +100,7 @@ async fn main() {
     let router = Router::new()
         .route("/special:login", get(login::get).post(login::post))
         .route("/special:create", get(create_get_handler).post(create_post_handler))
-        .route("/{*path}", get(page_get_handler).put(page_put_handler))
+        .route("/{*path}", get(page_get_handler).post(page_post_handler))
         .nest_service("/assets", ServeDir::new(assets_dir))
         .with_state(state);
 
@@ -144,7 +144,7 @@ async fn page_get_handler(
 }
 
 #[debug_handler]
-async fn page_put_handler(
+async fn page_post_handler(
     State(state): State<AppState>,
     extract::Path(path): extract::Path<String>,
     jar: SignedCookieJar,
@@ -249,7 +249,7 @@ fn get_paths(pages_root: &Path, path: &str) -> Option<PagePathset> {
     let markdown = base.with_extension("md");
     let url = { let mut str = String::from("/"); str.push_str(url); str };
 
-    Some(PagePathset { url: url, md: markdown })
+    Some(PagePathset { url, md: markdown })
 }
 
 // Simplified version of tower's build_and_validate_path

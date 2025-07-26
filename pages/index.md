@@ -6,6 +6,6 @@
 }END METADATA -->
 # Welcome!
 
-This is the home page of a new wiki. Write down whatever you want, in CommonMark format.
+This is the home page of a new wiki. Write down whatever you want, in [CommonMark](https://commonmark.org/) format.
 
 Create a new page [here](/special:create).

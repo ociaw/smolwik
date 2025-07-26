@@ -1,5 +1,9 @@
 <html>
-<!-- This file can only be changed by recompiling. -->
+{#
+    This file can only be changed by recompiling. As this is a last-resort fallback, this template *must* not fail to
+    render. As such, it explicitly does not extend any other templates. The only variable it uses is template_error,
+    which defaults to an empty value if not present.
+#}
 <head><title>Error rendering error template</title></head>
 <body>
 <h1>Error rendering error template</h1>

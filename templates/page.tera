@@ -1,14 +1,12 @@
-<html>
-<head>
-    <link href="assets/default.css" rel="stylesheet" />
-    <title>{{ title }}</title>
-</head>
-<body>
-    <main>
-    {{ rendered_cmark | safe }}
-    </main>
-    <footer>
-        <header><a href="?mode=Edit">Edit this page</a></header>
-    </footer>
-</body>
-</html>
+{% extends "base.tera" %}
+{% block content %}
+    <article>
+        <header>
+            <h1>{{ title }}</h1>
+            <nav><a href="?mode=Edit">Edit this page</a></nav>
+        </header>
+        <main>
+            {{ rendered_cmark | safe }}
+        </main>
+    </article>
+{% endblock content %}
