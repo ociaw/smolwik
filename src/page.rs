@@ -8,8 +8,8 @@ use tokio::fs::File;
 use tokio::io;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Error, ErrorKind};
 
-const METADATA_START: &'static str = "<!-- BEGIN METADATA\n";
-const METADATA_END: &'static str = "END METADATA -->\n";
+const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
+const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
 
 #[derive(Debug, Clone)]
 pub struct RenderedPage {
@@ -55,16 +55,6 @@ impl RenderedPage {
             html: Html(html),
         }
     }
-
-    pub fn write<W>(&self, mut writer: W) -> Result<(), PageWriteError>
-        where W: std::io::Write
-    {
-        write!(writer, "<!-- BEGIN METADATA\n")?;
-        serde_json::to_writer(&mut writer, &self.metadata).expect("Metadata serialization failed. This should never happen.");
-        write!(writer, "\nEND METADATA -->\n")?;
-        writer.write_all(self.html.0.as_bytes())?;
-        Ok(())
-    }
 }
 
 impl IntoResponse for RenderedPage {
@@ -93,24 +83,29 @@ impl RawPage {
     {
         let mut str = String::new();
         reader.read_line(&mut str).await?;
-        if !str.eq(METADATA_START) {
-            eprintln!("{}", str);
-            eprintln!("{}", METADATA_START);
+        if !str.eq(MARKDOWN_SEPARATOR_LINUX) && !str.eq(MARKDOWN_SEPARATOR_WINDOWS) {
+            eprintln!("Metadata start not found. Expected\n{}, found\n{}", MARKDOWN_SEPARATOR_LINUX, str);
             return Err(PageReadError::MissingMetadataStart);
         }
         drop(str);
 
         let mut metadata = String::new();
-        while !metadata.ends_with(METADATA_END) {
-            if reader.read_line(&mut metadata).await? == 0 {
+        let separator_len = loop {
+            match reader.read_line(&mut metadata).await? {
                 // If we read 0 bytes, that means we've reached the end of file without finding the
                 // end marker.
-                return Err(PageReadError::MissingMetadataEnd);
+                0 => {
+                    eprintln!("Metadata end not found. Expected\n{}", MARKDOWN_SEPARATOR_LINUX);
+                    return Err(PageReadError::MissingMetadataEnd)
+                },
+                4 if metadata.ends_with(MARKDOWN_SEPARATOR_LINUX) => break 4,
+                5 if metadata.ends_with(MARKDOWN_SEPARATOR_WINDOWS) => break 5,
+                _ => continue
             }
-        }
+        };
 
-        metadata.truncate(metadata.len().saturating_sub(METADATA_END.len()));
-        let metadata = serde_json::from_str(&metadata)?;
+        metadata.truncate(metadata.len().saturating_sub(separator_len));
+        let metadata = toml::from_str(&metadata)?;
 
         let mut markdown = String::new();
         reader.read_to_string(&mut markdown).await?;
@@ -131,13 +126,13 @@ impl RawPage {
     }
 
     pub async fn write(&self, mut file: File) -> Result<(), PageWriteError> {
-        file.write_all(METADATA_START.as_bytes()).await?;
 
-        let mut file = file.into_std().await;
-        serde_json::to_writer_pretty(&mut file, &self.metadata).expect("Metadata serialization failed. This should never happen.");
-        let mut file = File::from_std(file);
+        file.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
 
-        file.write_all(METADATA_END.as_bytes()).await?;
+        let toml = toml::to_string_pretty(&self.metadata).expect("Metadata serialization failed. This should never happen.");
+        file.write_all(toml.as_bytes()).await?;
+
+        file.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
         file.write_all(self.markdown.as_bytes()).await?;
         Ok(())
     }
@@ -155,8 +150,8 @@ pub enum PageReadError {
     MissingMetadataStart,
     #[error("The end of the metadata section could not be found.")]
     MissingMetadataEnd,
-    #[error("The metadata is not valid JSON.")]
-    InvalidMetadata(#[from] serde_json::Error),
+    #[error("The metadata is not valid TOML.")]
+    InvalidMetadata(#[from] toml::de::Error),
 }
 
 impl From<io::Error> for PageReadError {
@@ -167,7 +162,6 @@ impl From<io::Error> for PageReadError {
         }
     }
 }
-
 
 #[derive(Error, Debug)]
 pub enum PageWriteError {
