@@ -19,7 +19,7 @@ pub enum ConfigError {
     #[error("IO error: {0}")]
     Io(#[from] tokio::io::Error),
     #[error("Deserialization error: {0}")]
-    Serde(#[from] serde_json::Error),
+    Serde(#[from] toml::de::Error),
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -34,7 +34,7 @@ impl AccountConfig {
         let mut file = File::open(path).await?;
         let mut str = String::new();
         file.read_to_string(&mut str).await?;
-        Ok(serde_json::from_str(&str)?)
+        Ok(toml::from_str(&str)?)
     }
 }
 

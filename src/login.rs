@@ -27,7 +27,7 @@ pub async fn post(
     if matches!(state.auth_mod, AuthenticationMode::Anonymous) {
         return Err(render_error(state, ErrorMessage::bad_request()))
     }
-    let account_config = match AccountConfig::from_file("accounts.json").await {
+    let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
         Err(err) => return Err(render_error(state, err.into())),
     };

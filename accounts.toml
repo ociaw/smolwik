@@ -1,0 +1,5 @@
+single_password = "test"
+
+[[accounts]]
+username = "demo"
+password = "null"
