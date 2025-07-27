@@ -1,0 +1,22 @@
+# The IPv4 or IPv6 address and port to bind to
+address = "127.0.0.1:8080"
+
+# The secret key used for deriving other cryptographic keys, such as a signing key for cookies
+secret_key = ""
+# The authentication mode used - Anonymous, Single, or Multi
+# Anonymous disable authentication and login entirely. Any pages that require an authenticated account to access cannot
+# be accessed. Editing and creating is only possible if Anonymous Edit and Anonymous Create is enabled.
+auth_mode = "Single"
+
+# Specifies who is allowed to create new pages. Anonymous is not recommended, unless smolwik is secured otherwise.
+# Anonymous, Authenticated, Accounts(),
+create_access = "Authenticated"
+
+# The file system directories to use for pages, assets, and templates relative to the current directory.
+# The directory where the markdown files representing each page are saved. smolwik must be able to write, modify, and
+# create new files and directories in this directory.
+pages = "pages/"
+# The directory where static assets like stylesheets and scripts are stored. smolwik only requires read access.
+assets = "assets/"
+# The glob to find page templates. smolwik only requires read access when starting up.
+templates = "templates/**/*"

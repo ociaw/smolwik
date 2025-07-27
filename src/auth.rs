@@ -1,9 +1,6 @@
-use std::path::Path;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::SignedCookieJar;
 use serde::{Deserialize, Serialize};
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Username(String);
@@ -12,30 +9,6 @@ pub struct Username(String);
 pub struct Account {
     pub username: Username,
     pub password: String,
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum ConfigError {
-    #[error("IO error: {0}")]
-    Io(#[from] tokio::io::Error),
-    #[error("Deserialization error: {0}")]
-    Serde(#[from] toml::de::Error),
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct AccountConfig {
-    pub single_password: Option<String>,
-    pub accounts: Vec<Account>,
-}
-
-impl AccountConfig {
-    pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigError>
-    where P : AsRef<Path> {
-        let mut file = File::open(path).await?;
-        let mut str = String::new();
-        file.read_to_string(&mut str).await?;
-        Ok(toml::from_str(&str)?)
-    }
 }
 
 #[derive(Deserialize, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

@@ -10,6 +10,7 @@ mod metadata;
 mod auth;
 mod error_message;
 mod login;
+mod config;
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use tower_http::{
 };
 use serde::Deserialize;
 use crate::auth::*;
+use crate::config::*;
 use crate::error_message::ErrorMessage;
 use crate::metadata::Metadata;
 use crate::page::{RawPage, RenderedPage};
@@ -33,14 +35,12 @@ use crate::render::Renderer;
 #[derive(Clone)]
 struct AppState {
     pub renderer: Arc<Renderer>,
-    pub pages_dir: PathBuf,
-    pub auth_mod: AuthenticationMode,
-    pub key: Key
+    pub config: Arc<Config>,
 }
 
 impl FromRef<AppState> for Key {
     fn from_ref(input: &AppState) -> Self {
-        input.key.clone()
+        Key::from(&input.config.secret_key)
     }
 }
 
@@ -84,16 +84,11 @@ impl Default for PageQuery {
 
 #[tokio::main]
 async fn main() {
-    // TODO: Read from a config file
-    let pages_dir = "pages/";
-    let assets_dir = "assets/";
-    let bind_address = "127.0.0.1:8080";
+    let config = Config::from_file("config.toml").await.expect("config.toml must be a readable, valid config.");
+    let config = Arc::new(config);
     let state = AppState {
-        renderer: Renderer::new("templates/**/*").unwrap().into(),
-        pages_dir: PathBuf::from(pages_dir),
-        auth_mod: AuthenticationMode::Single,
-        // TODO: Generate with a CSPRNG
-        key: Key::from(b"0123456701234567012345670123456701234567012345670123456701234567"),
+        renderer: Renderer::new(&config.templates).unwrap().into(),
+        config: config.clone(),
     };
 
     // build our application with a route
@@ -101,11 +96,11 @@ async fn main() {
         .route("/special:login", get(login::get).post(login::post))
         .route("/special:create", get(create_get_handler).post(create_post_handler))
         .route("/{*path}", get(page_get_handler).post(page_post_handler))
-        .nest_service("/assets", ServeDir::new(assets_dir))
+        .nest_service("/assets", ServeDir::new(&config.assets))
         .with_state(state);
 
     // run it
-    let listener = tokio::net::TcpListener::bind(bind_address)
+    let listener = tokio::net::TcpListener::bind(&config.address)
         .await
         .unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
@@ -119,7 +114,7 @@ async fn page_get_handler(
     query: extract::Query<PageQuery>,
     jar: SignedCookieJar,
 ) -> RenderedPage {
-    let pathset = match get_paths(&state.pages_dir, &path) {
+    let pathset = match get_paths(&state.config.pages, &path) {
         None => return render_error(state, ErrorMessage::not_found(&path)),
         Some(paths) => paths
     };
@@ -129,7 +124,13 @@ async fn page_get_handler(
         Err(err) => return render_error(state, err.into())
     };
 
-    match User::from(jar).check_authorization(&raw.metadata.view_access) {
+    let mode = query.mode.unwrap_or(Mode::Read);
+    let required = match mode {
+        Mode::Read => &raw.metadata.view_access,
+        Mode::Edit => &raw.metadata.edit_access,
+    };
+
+    match User::from(jar).check_authorization(required) {
         Authorization::Unauthorized => return render_error(state, ErrorMessage::forbidden()),
         Authorization::AuthenticationRequired => return render_error(state, ErrorMessage::unauthenticated()),
         _ => ()
@@ -150,7 +151,7 @@ async fn page_post_handler(
     jar: SignedCookieJar,
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedPage> {
-    let pathset = match get_paths(&state.pages_dir, &path) {
+    let pathset = match get_paths(&state.config.pages, &path) {
         None => return Err(render_error(state, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
@@ -187,22 +188,38 @@ async fn page_post_handler(
 }
 
 #[debug_handler]
-async fn create_get_handler(State(state): State<AppState>) -> RenderedPage {
-    // TODO: Check if user is allowed to create pages.
+async fn create_get_handler(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+) -> RenderedPage {
+    match User::from(jar).check_authorization(&state.config.create_access) {
+        Authorization::Unauthorized => return render_error(state, ErrorMessage::forbidden()),
+        Authorization::AuthenticationRequired => return render_error(state, ErrorMessage::unauthenticated()),
+        _ => ()
+    }
+
     let template = "page_create.tera";
     let raw = RawPage::default();
     render_page(state, raw, template)
 }
 
 #[debug_handler]
-async fn create_post_handler(State(state): State<AppState>, form: Form<CreateForm>) -> Result<Redirect, RenderedPage> {
+async fn create_post_handler(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+    form: Form<CreateForm>,
+) -> Result<Redirect, RenderedPage> {
     let path = &form.path;
-    let pathset = match get_paths(&state.pages_dir, path) {
+    let pathset = match get_paths(&state.config.pages, path) {
         None => return Err(render_error(state, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
 
-    // TODO: Check if user is allowed to create pages.
+    match User::from(jar).check_authorization(&state.config.create_access) {
+        Authorization::Unauthorized => return Err(render_error(state, ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => return Err(render_error(state, ErrorMessage::unauthenticated())),
+        _ => ()
+    }
 
     let metadata = Metadata {
         title: form.title.clone(),

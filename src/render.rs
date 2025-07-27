@@ -24,7 +24,7 @@ impl Renderer {
     pub fn render_template(&self, state: &AppState, template: &str, title: &str) -> Result<String, tera::Error> {
         let mut context = Context::new();
         context.insert("title", title);
-        context.insert("auth_mode", state.auth_mod.variant_string());
+        context.insert("auth_mode", state.config.auth_mode.variant_string());
 
         Ok(self.tera.render(template, &context)?)
     }

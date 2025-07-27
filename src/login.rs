@@ -24,7 +24,7 @@ pub async fn post(
     jar: SignedCookieJar,
     form: Form<LoginForm>
 ) -> Result<(SignedCookieJar, Redirect), Response> {
-    if matches!(state.auth_mod, AuthenticationMode::Anonymous) {
+    if matches!(state.config.auth_mode, AuthenticationMode::Anonymous) {
         return Err(render_error(state, ErrorMessage::bad_request()))
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
@@ -32,7 +32,7 @@ pub async fn post(
         Err(err) => return Err(render_error(state, err.into())),
     };
 
-    let user: Option<User> = match state.auth_mod {
+    let user: Option<User> = match state.config.auth_mode {
         AuthenticationMode::Anonymous => unreachable!(),
         AuthenticationMode::Single => account_config.single_password.map_or(false, |p| p == form.password).then(|| User::SingleUser),
         AuthenticationMode::Multi => {

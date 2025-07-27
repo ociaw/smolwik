@@ -1269,6 +1269,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "axum-extra",
+ "base64",
  "pulldown-cmark",
  "serde",
  "serde_json",

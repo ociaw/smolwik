@@ -1,6 +1,6 @@
 use crate::page::{PageReadError, PageWriteError};
 use axum::http::StatusCode;
-use crate::auth::ConfigError;
+use crate::config::ConfigError;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorMessage {
