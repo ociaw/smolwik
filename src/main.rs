@@ -96,6 +96,7 @@ async fn main() {
         .route("/special:login", get(login::get).post(login::post))
         .route("/special:create", get(create_get_handler).post(create_post_handler))
         .route("/{*path}", get(page_get_handler).post(page_post_handler))
+        .route("/", get(root_page_get_handler).post(root_page_post_handler))
         .nest_service("/assets", ServeDir::new(&config.assets))
         .with_state(state);
 
@@ -114,7 +115,7 @@ async fn page_get_handler(
     query: extract::Query<PageQuery>,
     jar: SignedCookieJar,
 ) -> RenderedPage {
-    let pathset = match get_paths(&state.config.pages, &path) {
+    let pathset = match get_paths(&state.config, &path) {
         None => return render_error(state, ErrorMessage::not_found(&path)),
         Some(paths) => paths
     };
@@ -151,7 +152,7 @@ async fn page_post_handler(
     jar: SignedCookieJar,
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedPage> {
-    let pathset = match get_paths(&state.config.pages, &path) {
+    let pathset = match get_paths(&state.config, &path) {
         None => return Err(render_error(state, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
@@ -187,6 +188,22 @@ async fn page_post_handler(
     }
 }
 
+async fn root_page_get_handler(
+    State(state): State<AppState>,
+    query: extract::Query<PageQuery>,
+    jar: SignedCookieJar,
+) -> RenderedPage {
+    page_get_handler(State(state), extract::Path(String::new()), query, jar).await
+}
+
+async fn root_page_post_handler(
+    State(state): State<AppState>,
+    jar: SignedCookieJar,
+    form: Form<EditForm>
+) -> Result<Redirect, RenderedPage> {
+    page_post_handler(State(state), extract::Path(String::new()), jar, form).await
+}
+
 #[debug_handler]
 async fn create_get_handler(
     State(state): State<AppState>,
@@ -210,7 +227,7 @@ async fn create_post_handler(
     form: Form<CreateForm>,
 ) -> Result<Redirect, RenderedPage> {
     let path = &form.path;
-    let pathset = match get_paths(&state.config.pages, path) {
+    let pathset = match get_paths(&state.config, path) {
         None => return Err(render_error(state, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
@@ -256,28 +273,37 @@ fn render_error(state: AppState, error: ErrorMessage) -> RenderedPage {
     RenderedPage::error(&error, state.renderer.render_error(&error))
 }
 
-fn get_paths(pages_root: &Path, path: &str) -> Option<PagePathset> {
-    let (relative, url) = match validate_path(&path) {
+fn get_paths(config: &Config, path: &str) -> Option<PagePathset> {
+    let mut relative = match validate_path(&path) {
         None => return None,
         Some(relative) => relative,
     };
 
-    let base = pages_root.join(&relative);
-    let markdown = base.with_extension("md");
-    let url = { let mut str = String::from("/"); str.push_str(url); str };
+    // If the path points to a directory, use the index of the directory instead
+    let file_stem = {
+        let mut file_stem = config.pages.join(&relative);
+        if relative.to_str().unwrap().ends_with("/") || file_stem.is_dir() {
+            file_stem.push("index");
+            relative.push("index");
+        }
+        file_stem
+    };
+
+    let markdown = file_stem.with_extension("md");
+    let url = format!("/{}", relative.to_str().unwrap());
 
     Some(PagePathset { url, md: markdown })
 }
 
 // Simplified version of tower's build_and_validate_path
 // https://github.com/tower-rs/tower-http/blob/075479b852f348c8b74245f478b9012090acf5fc/tower-http/src/services/fs/serve_dir/mod.rs#L453
-fn validate_path(requested_path: &str) -> Option<(PathBuf, &str)> {
-    let path_str = requested_path.trim_start_matches('/');
-    let path = Path::new(&path_str);
-    if path_str.starts_with("special:") {
+fn validate_path(path: &str) -> Option<PathBuf> {
+    let path = path.trim_start_matches('/');
+    if path.starts_with("special:") {
         return None;
     }
 
+    let path = PathBuf::from(&path);
     for component in path.components() {
         match component {
             Component::Normal(comp) => {
@@ -295,5 +321,5 @@ fn validate_path(requested_path: &str) -> Option<(PathBuf, &str)> {
         }
     }
 
-    Some((path.to_path_buf(), path_str))
+    Some(path)
 }

@@ -5,17 +5,15 @@
 {% if auth_mode == "anonymous" %}
     <h1>Login Disabled</h1>
 {% else %}
-<form method="POST">
+<form method=POST>
     <fieldset>
-        {% if auth_mode != "single" %}
         <div>
-            <h4>Username</h4>
-            <input name="username" id="username" type="text" />
-        </div>
-        {% endif %}
-        <div>
-            <h4>Password</h4>
-            <input name="password" id="password" type="password" />
+            {% if auth_mode != "single" %}
+            <label for=username>Username</label>
+            <input name=username id=username type=text />
+            {% endif %}
+            <label for=password>Password</label>
+            <input name=password id=password type=password />
         </div>
     </fieldset>
     <button>Login</button>
