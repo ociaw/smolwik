@@ -4,13 +4,13 @@
     <link rel=stylesheet href=/assets/default.css />
     <link rel=icon href=/assets/smolwik.icon.svg />
     {% block head %}
-        <title>{{ title }} - tinwik</title>
+        <title>{{ title }} - smolwik</title>
     {% endblock head %}
 </head>
 <body>
 <header id=primary-header>
     <div>
-        <a id=brand href=/>tinwik - the tiny wiki</a>
+        <a id=brand href=/ >smolwik - the small wiki</a>
         <nav id=primary-navbar>
             <a href=/special:create>Create Page</a>
             <a href=/special:login>Log in</a>
@@ -20,7 +20,7 @@
 <main>{% block content %}{% endblock content %}</main>
 <footer>
     {% block footer %}
-        <div>powered by tinwik</div>
+        <div>powered by smolwik</div>
     {% endblock footer %}
 </footer>
 </body>
