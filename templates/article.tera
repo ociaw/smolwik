@@ -3,7 +3,7 @@
     <article>
         <header>
             <h1>{{ title }}</h1>
-            <nav><a href="?mode=Edit">Edit this article</a></nav>
+            <nav><a href="?edit">Edit this article</a></nav>
         </header>
         <main>
             {{ rendered_cmark | safe }}

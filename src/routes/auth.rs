@@ -1,9 +1,16 @@
 use crate::*;
 use crate::auth::*;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::SignedCookieJar;
+
+pub fn router(state: AppState) -> Router {
+    Router::new()
+        .route("/special:login", get(get_handler).post(post_handler))
+        .with_state(state)
+}
 
 #[derive(Deserialize)]
 pub struct LoginForm {
@@ -11,15 +18,22 @@ pub struct LoginForm {
     pub password: String,
 }
 
-pub async fn get(State(state): State<AppState>, jar: SignedCookieJar) -> Response {
+async fn get_handler(State(state): State<AppState>, jar: SignedCookieJar) -> Response {
     match User::from(jar) {
-        User::Anonymous => render_template(state, "login.tera", "Login").into_response(),
+        User::Anonymous => state.renderer.render_template(&state, "login.tera", "Login").map_or_else(
+            |err| {
+                let mut response = state.renderer.render_error(&err.into()).into_response();
+                *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+                response
+            },
+            |s| Html(s).into_response()
+        ),
         _ => render_error(state, ErrorMessage::already_authenticated())
     }
 }
 
 #[debug_handler]
-pub async fn post(
+async fn post_handler(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     form: Form<LoginForm>
