@@ -1,13 +1,13 @@
 {% extends "base.tera" %}
 {% block content %}
-    <h1>Create a New Page</h1>
+    <h1>Create a New Article</h1>
     <form method=POST>
         <fieldset>
             <div>
-                <label for=title>Page Title</label>
-                <input name=title id=title type=text value="{{ title }}" placeholder="My New Page" />
-                <label for=title>Page Slug</label>
-                <input name=path id=path type=text value="{{ path | default(value='') }}" placeholder=my-new-page />
+                <label for=title>Article Title</label>
+                <input name=title id=title type=text value="{{ title }}" placeholder="My New Article" />
+                <label for=title>Path Slug</label>
+                <input name=path id=path type=text value="{{ path | default(value='') }}" placeholder=my-new-article />
                 <label>View Access</label>
                 <div class=radio-group>
                     <label><input type=radio name=view_access value=Anonymous id=view-anonymous /> Anonymous</label>
@@ -22,7 +22,7 @@
                 </div>
             </div>
         </fieldset>
-        <textarea name=cmark placeholder="# My New Page&#10;&#10;CommonMark is supported here including several extensions, including tables, ~~strikethrough~~, and footnotes [^1].&#10;&#10;[^1]:Like this."></textarea>
-        <button>Create Page</button>
+        <textarea name=cmark placeholder="# My New Article&#10;&#10;CommonMark is supported here including several extensions, including tables, ~~strikethrough~~, and footnotes [^1].&#10;&#10;[^1]:Like this."></textarea>
+        <button>Create Article</button>
     </form>
 {% endblock content %}

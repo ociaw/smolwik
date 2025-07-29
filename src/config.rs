@@ -19,7 +19,7 @@ pub struct Config {
     pub secret_key: Vec<u8>,
     pub auth_mode: AuthenticationMode,
     pub create_access: Access,
-    pub pages: PathBuf,
+    pub articles: PathBuf,
     pub assets: PathBuf,
     pub templates: String,
 }

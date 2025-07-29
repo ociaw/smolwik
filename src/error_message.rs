@@ -1,4 +1,4 @@
-use crate::page::{PageReadError, PageWriteError};
+use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
 use crate::config::ConfigError;
 
@@ -68,23 +68,23 @@ impl ErrorMessage {
     }
 }
 
-impl From<PageWriteError> for ErrorMessage {
-    fn from(value: PageWriteError) -> Self {
+impl From<ArticleWriteError> for ErrorMessage {
+    fn from(value: ArticleWriteError) -> Self {
         match value {
-            PageWriteError::InvalidPath => Self::bad_request(),
-            PageWriteError::IoError(err) => Self::internal_error(err.to_string())
+            ArticleWriteError::InvalidPath => Self::bad_request(),
+            ArticleWriteError::IoError(err) => Self::internal_error(err.to_string())
         }
     }
 }
 
-impl From<PageReadError> for ErrorMessage {
-    fn from(value: PageReadError) -> Self {
+impl From<ArticleReadError> for ErrorMessage {
+    fn from(value: ArticleReadError) -> Self {
         match value {
             // For transient IO errors, we don't want to save the response, so we return an error.
-            PageReadError::IoError(err) => Self::internal_error(err.to_string()),
+            ArticleReadError::IoError(err) => Self::internal_error(err.to_string()),
             // These errors are not transient, and need to be fixed in some way. We render the
-            // page with an error message and return that.
-            PageReadError::NotFound => Self::not_found(""),
+            // article with an error message and return that.
+            ArticleReadError::NotFound => Self::not_found(""),
             _ => Self::internal_error(value.to_string()),
         }
     }

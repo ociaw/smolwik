@@ -12,7 +12,7 @@
     <div>
         <a id=brand href=/ >smolwik - the small wiki</a>
         <nav id=primary-navbar>
-            <a href=/special:create>Create Page</a>
+            <a href=/special:create>Create Article</a>
             <a href=/special:login>Log in</a>
         </nav>
     </div>

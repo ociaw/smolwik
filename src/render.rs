@@ -29,7 +29,7 @@ impl Renderer {
         Ok(self.tera.render(template, &context)?)
     }
 
-    pub fn render_page(&self, raw: &RawPage, template: &str) -> Result<String, tera::Error> {
+    pub fn render_article(&self, raw: &RawArticle, template: &str) -> Result<String, tera::Error> {
         let mut context = Context::new();
         context.insert("title", &raw.metadata.title);
         context.insert("view_access", raw.metadata.view_access.variant_string());

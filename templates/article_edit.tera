@@ -1,10 +1,10 @@
 {% extends "base.tera" %}
 {% block content %}
-    <h1>Editing page "{{ title }}"</h1>
+    <h1>Editing article "{{ title }}"</h1>
     <form method=POST>
         <fieldset>
             <div>
-                <label for=title>Page Title</label>
+                <label for=title>Article Title</label>
                 <input name=title id=title type=text value="{{ title }}" />
                 <label>View Access</label>
                 <div class=radio-group>

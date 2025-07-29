@@ -12,52 +12,35 @@ const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
 const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
 
 #[derive(Debug, Clone)]
-pub struct RenderedPage {
-    pub metadata: Metadata,
+pub struct RenderedArticle {
     pub status_code: StatusCode,
     pub html: Html<String>,
 }
 
-impl RenderedPage {
-    pub fn error(error: &ErrorMessage, html: String) -> RenderedPage {
-        let metadata = match error.status_code {
-            StatusCode::NOT_FOUND => Metadata::not_found(),
-            StatusCode::BAD_REQUEST => Metadata::bad_request(),
-            StatusCode::INTERNAL_SERVER_ERROR | _ => Metadata::internal_error(),
-        };
-        RenderedPage {
-            metadata,
+impl RenderedArticle {
+    pub fn error(error: &ErrorMessage, html: String) -> RenderedArticle {
+        RenderedArticle {
             status_code: error.status_code,
             html: Html(html),
         }
     }
 
-    pub fn ok(metadata: Metadata, html: String) -> RenderedPage {
-        RenderedPage {
-            metadata,
+    pub fn ok(html: String) -> RenderedArticle {
+        RenderedArticle {
             status_code: StatusCode::OK,
             html: Html(html),
         }
     }
 
-    pub fn not_found(html: String) -> RenderedPage {
-        RenderedPage {
-            metadata: Metadata::not_found(),
-            status_code: StatusCode::NOT_FOUND,
-            html: Html(html),
-        }
-    }
-
-    pub fn internal_error(html: String) -> RenderedPage {
-        RenderedPage {
-            metadata: Metadata::internal_error(),
+    pub fn internal_error(html: String) -> RenderedArticle {
+        RenderedArticle {
             status_code: StatusCode::INTERNAL_SERVER_ERROR,
             html: Html(html),
         }
     }
 }
 
-impl IntoResponse for RenderedPage {
+impl IntoResponse for RenderedArticle {
     fn into_response(self) -> Response {
         let mut response = self.html.into_response();
         *response.status_mut() = self.status_code;
@@ -66,26 +49,26 @@ impl IntoResponse for RenderedPage {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct RawPage {
+pub struct RawArticle {
     pub metadata: Metadata,
     pub markdown: String,
 }
 
-impl RawPage {
-    pub async fn read_from_path(path: &Path) -> Result<RawPage, PageReadError> {
+impl RawArticle {
+    pub async fn read_from_path(path: &Path) -> Result<RawArticle, ArticleReadError> {
         let file = File::open(path).await?;
         let mut reader = BufReader::new(file);
-        RawPage::from_reader(&mut reader).await
+        RawArticle::from_reader(&mut reader).await
     }
 
-    pub async fn from_reader<R>(mut reader: R) -> Result<RawPage, PageReadError>
+    pub async fn from_reader<R>(mut reader: R) -> Result<RawArticle, ArticleReadError>
         where R: io::AsyncBufRead + Unpin
     {
         let mut str = String::new();
         reader.read_line(&mut str).await?;
         if !str.eq(MARKDOWN_SEPARATOR_LINUX) && !str.eq(MARKDOWN_SEPARATOR_WINDOWS) {
             eprintln!("Metadata start not found. Expected\n{}, found\n{}", MARKDOWN_SEPARATOR_LINUX, str);
-            return Err(PageReadError::MissingMetadataStart);
+            return Err(ArticleReadError::MissingMetadataStart);
         }
         drop(str);
 
@@ -96,7 +79,7 @@ impl RawPage {
                 // end marker.
                 0 => {
                     eprintln!("Metadata end not found. Expected\n{}", MARKDOWN_SEPARATOR_LINUX);
-                    return Err(PageReadError::MissingMetadataEnd)
+                    return Err(ArticleReadError::MissingMetadataEnd)
                 },
                 4 if metadata.ends_with(MARKDOWN_SEPARATOR_LINUX) => break 4,
                 5 if metadata.ends_with(MARKDOWN_SEPARATOR_WINDOWS) => break 5,
@@ -110,13 +93,13 @@ impl RawPage {
         let mut markdown = String::new();
         reader.read_to_string(&mut markdown).await?;
 
-        Ok(RawPage {
+        Ok(RawArticle {
             metadata,
             markdown
         })
     }
 
-    pub async fn write_to_path(&self, path: &Path) -> Result<(), PageWriteError> {
+    pub async fn write_to_path(&self, path: &Path) -> Result<(), ArticleWriteError> {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
@@ -125,7 +108,7 @@ impl RawPage {
         Ok(self.write(file).await?)
     }
 
-    pub async fn write(&self, mut file: File) -> Result<(), PageWriteError> {
+    pub async fn write(&self, mut file: File) -> Result<(), ArticleWriteError> {
 
         file.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
 
@@ -139,9 +122,9 @@ impl RawPage {
 }
 
 #[derive(Error, Debug)]
-pub enum PageReadError {
-    /// Indicates that the requested page's path is invalid or doesn't exist.
-    #[error("Page not found.")]
+pub enum ArticleReadError {
+    /// Indicates that the requested article's path is invalid or doesn't exist.
+    #[error("Article not found.")]
     NotFound,
     /// Indicates that there was an error reading the file.
     #[error("An error occurred reading the file at the provided path.")]
@@ -154,18 +137,18 @@ pub enum PageReadError {
     InvalidMetadata(#[from] toml::de::Error),
 }
 
-impl From<io::Error> for PageReadError {
+impl From<io::Error> for ArticleReadError {
     fn from(value: Error) -> Self {
         match value.kind() {
-            ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => PageReadError::NotFound,
-            _ => PageReadError::IoError(value),
+            ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => ArticleReadError::NotFound,
+            _ => ArticleReadError::IoError(value),
         }
     }
 }
 
 #[derive(Error, Debug)]
-pub enum PageWriteError {
-    /// Indicates that the requested page's path is invalid.
+pub enum ArticleWriteError {
+    /// Indicates that the requested article's path is invalid.
     #[error("Invalid path")]
     InvalidPath,
     /// Indicates that there was an error reading the file.
@@ -173,11 +156,11 @@ pub enum PageWriteError {
     IoError(io::Error),
 }
 
-impl From<io::Error> for PageWriteError {
+impl From<io::Error> for ArticleWriteError {
     fn from(value: Error) -> Self {
         match value.kind() {
-            ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => PageWriteError::InvalidPath,
-            _ => PageWriteError::IoError(value),
+            ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => ArticleWriteError::InvalidPath,
+            _ => ArticleWriteError::IoError(value),
         }
     }
 }
