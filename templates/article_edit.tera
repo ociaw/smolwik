@@ -20,7 +20,8 @@
                 </div>
             </div>
         </fieldset>
-        <textarea name=cmark >{{ raw_cmark }}</textarea>
+        <label for=cmark>CommonMark</label>
+        <textarea name=cmark id=cmark>{{ raw_cmark }}</textarea>
         <button>Save changes</button>
     </form>
 {% endblock content %}

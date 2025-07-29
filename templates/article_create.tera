@@ -6,23 +6,24 @@
             <div>
                 <label for=title>Article Title</label>
                 <input name=title id=title type=text value="{{ title }}" placeholder="My New Article" />
-                <label for=title>Path Slug</label>
+                <label for=path>Path Slug</label>
                 <input name=path id=path type=text value="{{ path | default(value='') }}" placeholder=my-new-article />
                 <label>View Access</label>
                 <div class=radio-group>
                     <label><input type=radio name=view_access value=Anonymous id=view-anonymous /> Anonymous</label>
-                    <label><input type=radio name=view_access value=Authenticated id=view-authenticated {selected /> Authenticated</label>
+                    <label><input type=radio name=view_access value=Authenticated id=view-authenticated checked /> Authenticated</label>
                     <label><input type=radio name=view_access value=Accounts id=view-accounts /> Accounts</label>
                 </div>
                 <label>Edit Access</label>
                 <div class=radio-group>
                     <label><input type=radio name=edit_access value=Anonymous id=edit-anonymous /> Anonymous</label>
-                    <label><input type=radio name=edit_access value=Authenticated id=edit-authenticated selected /> Authenticated</label>
+                    <label><input type=radio name=edit_access value=Authenticated id=edit-authenticated checked /> Authenticated</label>
                     <label><input type=radio name=edit_access value=Accounts id=edit-accounts /> Accounts</label>
                 </div>
             </div>
         </fieldset>
-        <textarea name=cmark placeholder="# My New Article&#10;&#10;CommonMark is supported here including several extensions, including tables, ~~strikethrough~~, and footnotes [^1].&#10;&#10;[^1]:Like this."></textarea>
+        <label for=cmark>CommonMark</label>
+        <textarea name=cmark id=cmark placeholder="# My New Article&#10;&#10;CommonMark is supported here including several extensions, including tables, ~~strikethrough~~, and footnotes [^1].&#10;&#10;[^1]:Like this."></textarea>
         <button>Create Article</button>
     </form>
 {% endblock content %}
