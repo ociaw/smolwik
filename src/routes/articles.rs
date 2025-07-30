@@ -1,12 +1,12 @@
-use axum::{debug_handler, routing::get, Form, Router};
+use axum::{debug_handler, routing::get, Router};
 use axum::extract;
 use axum::extract::State;
 use axum::response::Redirect;
-use axum_extra::extract::SignedCookieJar;
 use serde::Deserialize;
 use crate::auth::*;
 use crate::article::{RawArticle, RenderedArticle};
 use crate::*;
+use crate::extractors::Form;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -49,7 +49,7 @@ async fn get_handler(
     State(state): State<AppState>,
     extract::Path(path): extract::Path<String>,
     query: extract::Query<ArticleQuery>,
-    jar: SignedCookieJar,
+    user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
         None => return Err(render_error(&state, ErrorMessage::not_found(&path))),
@@ -66,7 +66,7 @@ async fn get_handler(
         None => &raw.metadata.view_access,
     };
 
-    if let Err(err) = check_access(jar, &state, &required) {
+    if let Err(err) = check_access(user, &state, &required) {
         return Err(err);
     }
 
@@ -82,7 +82,7 @@ async fn get_handler(
 async fn post_handler(
     State(state): State<AppState>,
     extract::Path(path): extract::Path<String>,
-    jar: SignedCookieJar,
+    user: User,
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
@@ -95,7 +95,7 @@ async fn post_handler(
         Err(err) => return Err(render_error(&state, err.into()))
     };
 
-    if let Err(err) = check_access(jar, &state, &raw.metadata.edit_access) {
+    if let Err(err) = check_access(user, &state, &raw.metadata.edit_access) {
         return Err(err);
     }
 
@@ -122,26 +122,26 @@ async fn post_handler(
 async fn root_get_handler(
     State(state): State<AppState>,
     query: extract::Query<ArticleQuery>,
-    jar: SignedCookieJar,
+    user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
-    get_handler(State(state), extract::Path(String::new()), query, jar).await
+    get_handler(State(state), extract::Path(String::new()), query, user).await
 }
 
 async fn root_post_handler(
     State(state): State<AppState>,
-    jar: SignedCookieJar,
+    user: User,
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedArticle> {
-    post_handler(State(state), extract::Path(String::new()), jar, form).await
+    post_handler(State(state), extract::Path(String::new()), user, form).await
 }
 
 
 #[debug_handler]
 async fn create_get_handler(
     State(state): State<AppState>,
-    jar: SignedCookieJar,
+    user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
-    if let Err(err) = check_access(jar, &state, &state.config.create_access) {
+    if let Err(err) = check_access(user, &state, &state.config.create_access) {
         return Err(err);
     }
 
@@ -153,7 +153,7 @@ async fn create_get_handler(
 #[debug_handler]
 async fn create_post_handler(
     State(state): State<AppState>,
-    jar: SignedCookieJar,
+    user: User,
     form: Form<CreateForm>,
 ) -> Result<Redirect, RenderedArticle> {
     let path = &form.path;
@@ -162,7 +162,7 @@ async fn create_post_handler(
         Some(paths) => paths
     };
 
-    if let Err(err) = check_access(jar, &state, &state.config.create_access) {
+    if let Err(err) = check_access(user, &state, &state.config.create_access) {
         return Err(err);
     }
 
@@ -194,8 +194,8 @@ fn render_error(state: &AppState, error: ErrorMessage) -> RenderedArticle {
     RenderedArticle::error(&error, state.renderer.render_error(&error))
 }
 
-fn check_access(jar: SignedCookieJar, state: &AppState, access: &Access) -> Result<(), RenderedArticle> {
-    match User::from(jar).check_authorization(access) {
+fn check_access(user: User, state: &AppState, access: &Access) -> Result<(), RenderedArticle> {
+    match user.check_authorization(access) {
         Authorization::Unauthorized => Err(render_error(state, ErrorMessage::forbidden())),
         Authorization::AuthenticationRequired => Err(render_error(state, ErrorMessage::unauthenticated())),
         _ => Ok(())

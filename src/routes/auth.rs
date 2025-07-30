@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::SignedCookieJar;
+use crate::extractors::Form;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -18,8 +19,9 @@ pub struct LoginForm {
     pub password: String,
 }
 
-async fn get_handler(State(state): State<AppState>, jar: SignedCookieJar) -> Response {
-    match User::from(jar) {
+#[debug_handler]
+async fn get_handler(State(state): State<AppState>, user: User) -> Response {
+    match user {
         User::Anonymous => state.renderer.render_template(&state, "login.tera", "Login").map_or_else(
             |err| {
                 let mut response = state.renderer.render_error(&err.into()).into_response();
@@ -66,10 +68,4 @@ async fn post_handler(
     let cookie = Cookie::from(user);
     let jar = jar.add(cookie);
     Ok((jar, Redirect::to("/")))
-}
-
-fn render_error(state: AppState, error: ErrorMessage) -> Response {
-    let mut response = Html(state.renderer.render_error(&error)).into_response();
-    *response.status_mut() = error.status_code;
-    response
 }

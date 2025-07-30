@@ -74,8 +74,6 @@ impl From<User> for Cookie<'_> {
         let value = serde_json::to_string(&value).expect("User must be serializable.");
 
         Cookie::build(("user", value))
-            .http_only(true)
-            .secure(true)
             .same_site(SameSite::Strict)
             .build()
     }

@@ -1,3 +1,4 @@
+use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
 use crate::config::ConfigError;
@@ -15,6 +16,14 @@ impl ErrorMessage {
             status_code: StatusCode::BAD_REQUEST,
             title: "Bad request".to_owned(),
             details: "Invalid data in request.".to_owned()
+        }
+    }
+
+    pub fn bad_request_with_details(details: impl Into<String>) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::BAD_REQUEST,
+            title: "Bad request".to_owned(),
+            details: details.into(),
         }
     }
 
@@ -55,6 +64,22 @@ impl ErrorMessage {
             status_code: StatusCode::NOT_FOUND,
             title: "Page not found".to_owned(),
             details: format!("The requested path could not be found: {}", path),
+        }
+    }
+
+    pub fn unsupported_media_type(details: impl Into<String>) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            title: "Unsupported media type".to_owned(),
+            details: details.into(),
+        }
+    }
+
+    pub fn unprocessable_entity(details: impl Into<String>) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::UNPROCESSABLE_ENTITY,
+            title: "Unprocessable entity".to_owned(),
+            details: details.into(),
         }
     }
 
@@ -99,5 +124,17 @@ impl From<ConfigError> for ErrorMessage {
 impl From<tera::Error> for ErrorMessage {
     fn from(value: tera::Error) -> Self {
         Self::internal_error(value.to_string())
+    }
+}
+
+impl From<FormRejection> for ErrorMessage {
+    fn from(value: FormRejection) -> Self {
+        match value {
+            FormRejection::InvalidFormContentType(err) => Self::unsupported_media_type(err.body_text()),
+            FormRejection::FailedToDeserializeForm(err) => Self::bad_request_with_details(err.body_text()),
+            FormRejection::FailedToDeserializeFormBody(err) => Self::unprocessable_entity(err.body_text()),
+            FormRejection::BytesRejection(err) => Self::bad_request_with_details(err.body_text()),
+            err => Self::bad_request_with_details(err.body_text()),
+        }
     }
 }

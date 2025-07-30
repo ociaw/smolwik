@@ -1162,8 +1162,10 @@ name = "smolwik"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "axum-core",
  "axum-extra",
  "base64",
+ "http",
  "pulldown-cmark",
  "serde",
  "serde_json",
