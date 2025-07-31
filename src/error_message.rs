@@ -1,3 +1,4 @@
+use std::error::Error;
 use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
@@ -59,11 +60,27 @@ impl ErrorMessage {
         }
     }
 
-    pub fn not_found(path: &str) -> Self {
+    pub fn account_not_found(username: &crate::auth::Username) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::NOT_FOUND,
+            title: "Account not found".to_owned(),
+            details: format!("An account could not be found with the provided username: {}", username),
+        }
+    }
+
+    pub fn path_not_found(path: &str) -> Self {
         ErrorMessage {
             status_code: StatusCode::NOT_FOUND,
             title: "Page not found".to_owned(),
             details: format!("The requested path could not be found: {}", path),
+        }
+    }
+
+    pub fn conflict(title: impl Into<String>, details: impl Into<String>) -> Self {
+        ErrorMessage {
+            status_code: StatusCode::CONFLICT,
+            title: title.into(),
+            details: details.into(),
         }
     }
 
@@ -109,7 +126,7 @@ impl From<ArticleReadError> for ErrorMessage {
             ArticleReadError::IoError(err) => Self::internal_error(err.to_string()),
             // These errors are not transient, and need to be fixed in some way. We render the
             // article with an error message and return that.
-            ArticleReadError::NotFound => Self::not_found(""),
+            ArticleReadError::NotFound => Self::path_not_found(""),
             _ => Self::internal_error(value.to_string()),
         }
     }
@@ -123,7 +140,15 @@ impl From<ConfigError> for ErrorMessage {
 
 impl From<tera::Error> for ErrorMessage {
     fn from(value: tera::Error) -> Self {
-        Self::internal_error(value.to_string())
+        let message = value.to_string();
+        // Try to improve the error message by getting the underlying cause. Tera wraps the useful
+        // error message with an unhelpful error.
+        if let Some(source) = value.source() && message.starts_with("Failed to render ") {
+            Self::internal_error(source.to_string())
+        }
+        else {
+            Self::internal_error(message)
+        }
     }
 }
 

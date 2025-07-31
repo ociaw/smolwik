@@ -17,7 +17,7 @@
         {% endif %}
         {% if is_authenticated %}
             <form method=POST action=/special:logout>
-                <button id=logout>Log out</button>
+                <button id=logout>Log out{% if username %} ({{ username }}){% endif %}</button>
             </form>
         {% else %}
             <a id=login href=/special:login>Log in</a>
@@ -28,6 +28,9 @@
 <main>{% block content %}{% endblock content %}</main>
 <footer>
     {% block footer %}
+        {% if is_administrator %}
+        <div><a href=/special:admin>Admin</a></div>
+        {% endif %}
         <div>powered by smolwik</div>
     {% endblock footer %}
 </footer>

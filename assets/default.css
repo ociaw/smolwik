@@ -127,7 +127,7 @@ fieldset label {
     text-wrap-mode: nowrap;
 }
 
-textarea, input[type=text] {
+textarea, input[type=text], input[type=password] {
     background-color: inherit;
     color: inherit;
 }
@@ -149,29 +149,29 @@ input[type=radio] {
 }
 
 /* Table styling */
-table
-{
+table {
     border-collapse: collapse;
 }
 
-tr:not(:last-of-type) td
-{
+thead {
+    border-bottom: 2px dashed grey;
+    font-family: Arial, Helvetica, FreeSans, 'Liberation Sans', sans-serif;
+}
+
+tr:not(:last-of-type) td {
     border-bottom: 1px solid grey;
 }
 
-td:not(:first-of-type), th:not(:first-of-type)
-{
+td:not(:first-of-type), th:not(:first-of-type) {
     padding-left: 4px;
 }
 
-td:not(:last-of-type), th:not(:last-of-type)
-{
+td:not(:last-of-type), th:not(:last-of-type) {
     padding-right: 4px;
     border-right: 1px solid grey;
 }
 
-td:not(:first-of-type)
-{
+td:not(:first-of-type) {
     text-align: right;
 }
 
@@ -207,6 +207,17 @@ td:not(:first-of-type)
 
 #logout:hover {
     text-decoration: underline;
+}
+
+/* Admin pages */
+#accounts {
+    max-width: 30rem;
+    border: 3px inset grey;
+}
+
+td.action {
+    width: 0;
+    white-space: nowrap;
 }
 
 /* Dark Color Scheme Styling */

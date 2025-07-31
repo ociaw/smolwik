@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::SignedCookieJar;
 use serde::{Deserialize, Serialize};
@@ -5,10 +6,55 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Username(String);
 
-#[derive(Deserialize, Debug, Clone)]
+impl Display for Username {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
     pub username: Username,
-    pub password: String,
+    password: String,
+}
+
+impl Account {
+    pub fn new(username: Username, password: &str) -> Account {
+        use argon2::{
+            password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+            Argon2
+        };
+
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
+
+        Account { username, password: hash.to_string() }
+    }
+
+    pub fn verify_password(&self, password: &str) -> Result<(),()> {
+        use argon2::{
+            password_hash::{PasswordHash, PasswordVerifier},
+            Argon2
+        };
+
+        let password_hash = PasswordHash::new(&self.password).map_err(|_| ())?;
+        let argon2 = Argon2::default();
+        argon2.verify_password(password.as_bytes(), &password_hash).map_err(|_| ())
+    }
+
+    pub fn set_password(&mut self, password: &str) {
+        use argon2::{
+            password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+            Argon2
+        };
+
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
+
+        self.password = hash.to_string();
+    }
 }
 
 #[derive(Deserialize, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
@@ -106,6 +152,7 @@ impl Access {
 }
 
 /// The result of an access check.
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Eq, Ord)]
 pub enum Authorization {
     /// The User is authorized to access the page.
     Authorized,

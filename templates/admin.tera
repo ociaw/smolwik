@@ -1,0 +1,28 @@
+{% extends "base.tera" %}
+{% set title = "Add Account" %}
+
+{% block content %}
+{% if is_administrator %}
+<h1>Admin</h1>
+<h2>Accounts</h2>
+<table id=accounts>
+    <thead>
+        <tr>
+            <td>Username</td>
+            <td class="action"></td>
+        </tr>
+    </thead>
+    <tbody>
+    {% for account in admin__accounts %}
+        <tr>
+            <td>{{ account }}</td>
+            <td class="action"><a href="/special:admin:account?username={{ account | urlencode}}">Edit</a></td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<div>
+    <a href=/special:admin:add_account>Add New Account</a>
+</div>
+{% endif %}
+{% endblock %}

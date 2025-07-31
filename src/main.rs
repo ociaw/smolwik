@@ -1,9 +1,3 @@
-//! Run with
-//!
-//! ```not_rust
-//! cargo run -p example-hello-world
-//! ```
-
 mod render;
 mod article;
 mod metadata;
@@ -23,11 +17,12 @@ use tower_http::{
     trace::TraceLayer,
 };
 use serde::Deserialize;
+use tera::Context;
 use crate::config::*;
 pub use crate::error_message::ErrorMessage;
 pub use crate::metadata::Metadata;
 use crate::article::RawArticle;
-use crate::auth::User;
+use crate::auth::{Access, User};
 use crate::render::Renderer;
 
 #[derive(Clone)]
@@ -38,8 +33,14 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let config = Config::from_file("config.toml").await.expect("config.toml must be a readable, valid config.");
-    let config = Arc::new(config);
+    let config = match Config::from_file("config.toml").await {
+        Ok(c) => Arc::new(c),
+        Err(err) => {
+            eprintln!("Couldn't open `config.toml`: {}", err.to_string());
+            return
+        }
+    };
+
     let state = AppState {
         renderer: Renderer::new((*config).clone()).unwrap().into(),
         config: config.clone()
@@ -47,6 +48,7 @@ async fn main() {
 
     let article_routes = routes::articles::router(state.clone());
     let auth_routes = routes::auth::router(state.clone());
+    let admin_routes = routes::admin::router(state.clone());
 
     // build our application with a route
     let router = Router::new()
@@ -54,7 +56,8 @@ async fn main() {
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone())
         .merge(article_routes)
-        .merge(auth_routes);
+        .merge(auth_routes)
+        .merge(admin_routes);
 
     // run it
     let listener = tokio::net::TcpListener::bind(&config.address)
@@ -65,8 +68,32 @@ async fn main() {
 }
 
 
-fn render_error(state: AppState, user: &User, error: ErrorMessage) -> Response {
+fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response {
     let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
     *response.status_mut() = error.status_code;
     response
+}
+
+fn render_template(state: &AppState, user: &User, template: &str, title: &str) -> Result<Response, Response> {
+    state.renderer.render_template(&user, template, title).map_or_else(
+        |err| Err(render_error(state, user, err.into())),
+        |s| Ok(Html(s).into_response())
+    )
+}
+
+fn render_template_with_context(state: &AppState, user: &User, template: &str, title: &str, context: Context) -> Result<Response, Response> {
+    state.renderer.render_template_with_context(&user, template, title, context).map_or_else(
+        |err| Err(render_error(state, user, err.into())),
+        |s| Ok(Html(s).into_response())
+    )
+}
+
+fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), Response> {
+    use crate::auth::Authorization;
+
+    match user.check_authorization(access) {
+        Authorization::Unauthorized => Err(render_error(state, user, ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => Err(render_error(state, user, ErrorMessage::unauthenticated())),
+        _ => Ok(())
+    }
 }

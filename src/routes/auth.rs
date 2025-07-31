@@ -32,7 +32,7 @@ async fn get_handler(State(state): State<AppState>, user: User) -> Response {
             },
             |s| Html(s).into_response()
         ),
-        _ => render_error(state, &user, ErrorMessage::already_authenticated())
+        _ => render_error(&state, &user, ErrorMessage::already_authenticated())
     }
 }
 
@@ -43,15 +43,15 @@ async fn post_handler(
     form: Form<LoginForm>
 ) -> Result<(SignedCookieJar, Redirect), Response> {
     let user = User::from(&jar);
-    if !matches!(user, User::Anonymous) {
-        return Err(render_error(state, &user, ErrorMessage::already_authenticated()))
+    if user != User::Anonymous {
+        return Err(render_error(&state, &user, ErrorMessage::already_authenticated()))
     }
-    if matches!(state.config.auth_mode, AuthenticationMode::Anonymous) {
-        return Err(render_error(state, &user, ErrorMessage::bad_request()))
+    if state.config.auth_mode == AuthenticationMode::Anonymous {
+        return Err(render_error(&state, &user, ErrorMessage::bad_request()))
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(render_error(state, &user, err.into())),
+        Err(err) => return Err(render_error(&state, &user, err.into())),
     };
 
     let user: Option<User> = match state.config.auth_mode {
@@ -60,14 +60,20 @@ async fn post_handler(
         AuthenticationMode::Multi => {
             match &form.username {
                 None => None,
-                Some(username) =>
-                    account_config.accounts.iter().any(|acc| &acc.username == username && &acc.password == &form.password).then(|| User::Account(username.clone())),
+                Some(username) => {
+                    if let Some(acc) = account_config.accounts.iter().find(|acc| &acc.username == username) {
+                        acc.verify_password(&form.password).map_or(None, |_| Some(User::Account(acc.username.clone())))
+                    }
+                    else {
+                        None
+                    }
+                }
             }
         }
     };
 
     let user = match user {
-        None => return Err(render_error(state, &User::Anonymous, ErrorMessage::invalid_credentials())),
+        None => return Err(render_error(&state, &User::Anonymous, ErrorMessage::invalid_credentials())),
         Some(u) => u,
     };
 
@@ -77,7 +83,7 @@ async fn post_handler(
 }
 
 #[debug_handler]
-async fn logout_handler(State(state): State<AppState>, mut jar: SignedCookieJar) -> (SignedCookieJar, Redirect) {
+async fn logout_handler(State(_state): State<AppState>, mut jar: SignedCookieJar) -> (SignedCookieJar, Redirect) {
     if let Some(cookie) = jar.get("user") {
         jar = jar.remove(cookie)
     }

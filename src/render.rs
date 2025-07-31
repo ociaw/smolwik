@@ -27,6 +27,12 @@ impl Renderer {
         self.tera.render(template, &self.build_context(user, title))
     }
 
+    pub fn render_template_with_context(&self, user: &User, template: &str, title: &str, context: Context) -> Result<String, tera::Error> {
+        let mut ctx = self.build_context(user, title);
+        ctx.extend(context);
+        self.tera.render(template, &ctx)
+    }
+
     pub fn render_article(&self, user: &User, raw: &RawArticle, template: &str) -> Result<String, tera::Error> {
         let mut context = self.build_context(user, &raw.metadata.title);
         context.insert("view_access", raw.metadata.view_access.variant_string());
@@ -69,9 +75,9 @@ impl Renderer {
                 true
             }
         };
-        context.insert("can_create", &matches!(user.check_authorization(&self.config.create_access), Authorization::Authorized));
-
+        context.insert("can_create", &(user.check_authorization(&self.config.create_access) == Authorization::Authorized));
         context.insert("is_authenticated", &authenticated);
+        context.insert("is_administrator", &(user.check_authorization(&self.config.administrator_access) == Authorization::Authorized));
         context
     }
 }

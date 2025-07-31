@@ -53,7 +53,7 @@ where
             Ok(f) => Ok(Form(f.0)),
             Err(e) => {
                 let state = AppState::from_ref(state);
-                Err(render_error(state, &user, e.into()))
+                Err(render_error(&state, &user, e.into()))
             }
         }
     }

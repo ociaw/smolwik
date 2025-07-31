@@ -52,7 +52,7 @@ async fn get_handler(
     user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
-         None => return Err(render_error(&state, &user, ErrorMessage::not_found(&path))),
+         None => return Err(render_error(&state, &user, ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 
@@ -86,7 +86,7 @@ async fn post_handler(
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(render_error(&state, &user, ErrorMessage::not_found(&path))),
+        None => return Err(render_error(&state, &user, ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 

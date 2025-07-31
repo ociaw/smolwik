@@ -1,0 +1,19 @@
+{% extends "base.tera" %}
+{% set title = "Account Edit" %}
+
+{% block content %}
+{% if is_administrator %}
+<h1>Account Edit</h1>
+<h2>Editing <code>{{ admin__username }}</code></h2>
+<form method=POST action=/special:admin:change_password>
+    <fieldset>
+        <div>
+            <label for=password>Password</label>
+            <input name=password id=password type=password />
+        </div>
+    </fieldset>
+    <input name=username id=username type=hidden value="{{ admin__username }}" />
+    <button>Add</button>
+</form>
+{% endif %}
+{% endblock %}
