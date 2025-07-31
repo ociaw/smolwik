@@ -62,6 +62,12 @@ impl User {
 
 impl From<SignedCookieJar> for User {
     fn from(value: SignedCookieJar) -> Self {
+        Self::from(&value)
+    }
+}
+
+impl From<&SignedCookieJar> for User {
+    fn from(value: &SignedCookieJar) -> Self {
         match value.get("user") {
             None => User::Anonymous,
             Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous)

@@ -27,6 +27,7 @@ use crate::config::*;
 pub use crate::error_message::ErrorMessage;
 pub use crate::metadata::Metadata;
 use crate::article::RawArticle;
+use crate::auth::User;
 use crate::render::Renderer;
 
 #[derive(Clone)]
@@ -40,7 +41,7 @@ async fn main() {
     let config = Config::from_file("config.toml").await.expect("config.toml must be a readable, valid config.");
     let config = Arc::new(config);
     let state = AppState {
-        renderer: Renderer::new(&config.templates).unwrap().into(),
+        renderer: Renderer::new((*config).clone()).unwrap().into(),
         config: config.clone()
     };
 
@@ -64,8 +65,8 @@ async fn main() {
 }
 
 
-fn render_error(state: AppState, error: ErrorMessage) -> Response {
-    let mut response = Html(state.renderer.render_error(&error)).into_response();
+fn render_error(state: AppState, user: &User, error: ErrorMessage) -> Response {
+    let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
     *response.status_mut() = error.status_code;
     response
 }

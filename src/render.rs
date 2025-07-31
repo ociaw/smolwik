@@ -1,15 +1,17 @@
 use pulldown_cmark::Options;
 use tera::{Context, Tera};
 use crate::*;
+use crate::auth::{Authorization, User};
 
 #[derive(Clone)]
 pub struct Renderer {
+    config: Config,
     tera: Tera,
 }
 
 impl Renderer {
-    pub fn new(dir: &str) -> Result<Renderer, tera::Error> {
-        let mut tera = Tera::new(dir)?;
+    pub fn new(config: Config) -> Result<Renderer, tera::Error> {
+        let mut tera = Tera::new(&config.templates)?;
         // Default error template used when an error occurs. Only add if an error template hasn't
         // been found in the directory.
         if !tera.get_template_names().any(|t| t.eq("error")) {
@@ -18,20 +20,15 @@ impl Renderer {
         // This template is added last to ensure that it is always available. If the error template
         // fails to render, this template will be used instead.
         tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.tera")).unwrap();
-        Ok(Renderer { tera })
+        Ok(Renderer { config, tera })
     }
 
-    pub fn render_template(&self, state: &AppState, template: &str, title: &str) -> Result<String, tera::Error> {
-        let mut context = Context::new();
-        context.insert("title", title);
-        context.insert("auth_mode", state.config.auth_mode.variant_string());
-
-        Ok(self.tera.render(template, &context)?)
+    pub fn render_template(&self, user: &User, template: &str, title: &str) -> Result<String, tera::Error> {
+        self.tera.render(template, &self.build_context(user, title))
     }
 
-    pub fn render_article(&self, raw: &RawArticle, template: &str) -> Result<String, tera::Error> {
-        let mut context = Context::new();
-        context.insert("title", &raw.metadata.title);
+    pub fn render_article(&self, user: &User, raw: &RawArticle, template: &str) -> Result<String, tera::Error> {
+        let mut context = self.build_context(user, &raw.metadata.title);
         context.insert("view_access", raw.metadata.view_access.variant_string());
         context.insert("edit_access", raw.metadata.edit_access.variant_string());
         context.insert("raw_cmark", &raw.markdown);
@@ -47,9 +44,8 @@ impl Renderer {
 
     /// Renders the error template with the provided title and error details. If the error template
     /// cannot be rendered, renders the fallback template.
-    pub fn render_error(&self, error: &ErrorMessage) -> String {
-        let mut context = Context::new();
-        context.insert("title", &error.title);
+    pub fn render_error(&self, user: &User, error: &ErrorMessage) -> String {
+        let mut context = self.build_context(user, &error.title);
         context.insert("details", &error.details);
         self.tera.render("error", &context).unwrap_or_else(Renderer::render_error_fallback)
     }
@@ -60,20 +56,22 @@ impl Renderer {
         Tera::default().render_str(include_str!("../templates/error_fallback.tera"), &context)
             .expect("Failed to render error fallback template")
     }
-}
 
-impl Default for Renderer {
-    fn default() -> Self {
-        let mut tera = Tera::default();
-        tera.add_raw_template("error", r"
-<html>
-<head><title>{{ title }}</title></head>
-<body>
-    <h1>{{ title }}</h1>
-    <p>{{ details }}</p>
-</body>
-</html>
-").unwrap();
-        Renderer { tera }
+    fn build_context(&self, user: &User, title: &str) -> Context {
+        let mut context = Context::new();
+        context.insert("title", title);
+        context.insert("auth_mode", self.config.auth_mode.variant_string());
+        let authenticated = match user {
+            User::Anonymous => false,
+            User::SingleUser => true,
+            User::Account(username) => {
+                context.insert("username", username);
+                true
+            }
+        };
+        context.insert("can_create", &matches!(user.check_authorization(&self.config.create_access), Authorization::Authorized));
+
+        context.insert("is_authenticated", &authenticated);
+        context
     }
 }

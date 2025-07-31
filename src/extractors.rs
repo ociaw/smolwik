@@ -5,6 +5,7 @@ use std::ops::Deref;
 use axum_core::response::Response;
 use axum_extra::extract::cookie::Key;
 use axum_extra::extract::SignedCookieJar;
+use http::Request;
 use serde::de::DeserializeOwned;
 use crate::{render_error, AppState};
 use crate::auth::User;
@@ -46,11 +47,13 @@ where
     type Rejection = Response;
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Form<T>, Self::Rejection> {
-        match axum::extract::Form::from_request(req, state).await {
+        let (mut parts, body) = req.into_parts();
+        let user: User = User::from_request_parts(&mut parts, &state).await.unwrap();
+        match axum::extract::Form::from_request(Request::from_parts(parts, body), state).await {
             Ok(f) => Ok(Form(f.0)),
             Err(e) => {
                 let state = AppState::from_ref(state);
-                Err(render_error(state, e.into()))
+                Err(render_error(state, &user, e.into()))
             }
         }
     }

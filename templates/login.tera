@@ -5,6 +5,7 @@
 {% if auth_mode == "anonymous" %}
     <h1>Login Disabled</h1>
 {% else %}
+<h1>Log In</h1>
 <form method=POST>
     <fieldset>
         <div>

@@ -12,8 +12,16 @@
     <div>
         <a id=brand href=/ >smolwik - the small wiki</a>
         <nav id=primary-navbar>
+        {% if can_create %}
             <a href=/special:create>Create Article</a>
-            <a href=/special:login>Log in</a>
+        {% endif %}
+        {% if is_authenticated %}
+            <form method=POST action=/special:logout>
+                <button id=logout>Log out</button>
+            </form>
+        {% else %}
+            <a id=login href=/special:login>Log in</a>
+        {% endif %}
         </nav>
     </div>
 </header>

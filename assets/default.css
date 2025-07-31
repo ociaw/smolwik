@@ -195,6 +195,20 @@ td:not(:first-of-type)
     color: inherit;
 }
 
+#logout {
+    padding: 0;
+    border: 0;
+    font-size: medium;
+    font-family: inherit;
+    background-color: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+#logout:hover {
+    text-decoration: underline;
+}
+
 /* Dark Color Scheme Styling */
 @media (prefers-color-scheme: dark)
 {

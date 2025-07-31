@@ -52,13 +52,13 @@ async fn get_handler(
     user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(render_error(&state, ErrorMessage::not_found(&path))),
+         None => return Err(render_error(&state, &user, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md).await {
         Ok(raw) => raw,
-        Err(err) => return Err(render_error(&state, err.into()))
+        Err(err) => return Err(render_error(&state, &user, err.into()))
     };
 
     let required = match &query.edit {
@@ -66,7 +66,7 @@ async fn get_handler(
         None => &raw.metadata.view_access,
     };
 
-    if let Err(err) = check_access(user, &state, &required) {
+    if let Err(err) = check_access(&user, &state, &required) {
         return Err(err);
     }
 
@@ -75,7 +75,7 @@ async fn get_handler(
         None => "article.tera",
     };
 
-    render_article(state, raw, template)
+    render_article(state, &user, raw, template)
 }
 
 #[debug_handler]
@@ -86,16 +86,16 @@ async fn post_handler(
     form: Form<EditForm>
 ) -> Result<Redirect, RenderedArticle> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(render_error(&state, ErrorMessage::not_found(&path))),
+        None => return Err(render_error(&state, &user, ErrorMessage::not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md).await {
         Ok(raw) => raw,
-        Err(err) => return Err(render_error(&state, err.into()))
+        Err(err) => return Err(render_error(&state, &user, err.into()))
     };
 
-    if let Err(err) = check_access(user, &state, &raw.metadata.edit_access) {
+    if let Err(err) = check_access(&user, &state, &raw.metadata.edit_access) {
         return Err(err);
     }
 
@@ -114,7 +114,7 @@ async fn post_handler(
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(render_error(&state, ErrorMessage::from(err)))
+            Err(render_error(&state, &user, ErrorMessage::from(err)))
         },
     }
 }
@@ -141,13 +141,13 @@ async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
 ) -> Result<RenderedArticle, RenderedArticle> {
-    if let Err(err) = check_access(user, &state, &state.config.create_access) {
+    if let Err(err) = check_access(&user, &state, &state.config.create_access) {
         return Err(err);
     }
 
     let template = "article_create.tera";
     let raw = RawArticle::default();
-    render_article(state, raw, template)
+    render_article(state, &user, raw, template)
 }
 
 #[debug_handler]
@@ -158,11 +158,11 @@ async fn create_post_handler(
 ) -> Result<Redirect, RenderedArticle> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(render_error(&state, ErrorMessage::bad_request())),
+        None => return Err(render_error(&state, &user, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
 
-    if let Err(err) = check_access(user, &state, &state.config.create_access) {
+    if let Err(err) = check_access(&user, &state, &state.config.create_access) {
         return Err(err);
     }
 
@@ -179,25 +179,25 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(render_error(&state, ErrorMessage::from(err)))
+        Err(err) => Err(render_error(&state, &user, ErrorMessage::from(err)))
     }
 }
 
-fn render_article(state: AppState, raw: RawArticle, template: &str) -> Result<RenderedArticle, RenderedArticle> {
-    match state.renderer.render_article(&raw, template) {
+fn render_article(state: AppState, user: &User, raw: RawArticle, template: &str) -> Result<RenderedArticle, RenderedArticle> {
+    match state.renderer.render_article(&user, &raw, template) {
         Ok(html) => Ok(RenderedArticle::ok(html)),
-        Err(err) => Err(RenderedArticle::internal_error(state.renderer.render_error(&err.into())))
+        Err(err) => Err(RenderedArticle::internal_error(state.renderer.render_error(&user, &err.into())))
     }
 }
 
-fn render_error(state: &AppState, error: ErrorMessage) -> RenderedArticle {
-    RenderedArticle::error(&error, state.renderer.render_error(&error))
+fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> RenderedArticle {
+    RenderedArticle::error(&error, state.renderer.render_error(&user, &error))
 }
 
-fn check_access(user: User, state: &AppState, access: &Access) -> Result<(), RenderedArticle> {
+fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), RenderedArticle> {
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(render_error(state, ErrorMessage::forbidden())),
-        Authorization::AuthenticationRequired => Err(render_error(state, ErrorMessage::unauthenticated())),
+        Authorization::Unauthorized => Err(render_error(state, &user, ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => Err(render_error(state, &user, ErrorMessage::unauthenticated())),
         _ => Ok(())
     }
 }
