@@ -14,10 +14,7 @@ use std::sync::Arc;
 use axum::{debug_handler, routing::get, Router};
 use axum::response::{Html, Redirect};
 use axum_core::response::{IntoResponse, Response};
-use tower_http::{
-    services::ServeDir,
-    trace::TraceLayer,
-};
+use tower_http::{services::ServeDir, trace::TraceLayer};
 use serde::Deserialize;
 use tera::Context;
 use crate::config::*;
@@ -52,14 +49,16 @@ async fn main() {
     let auth_routes = routes::auth::router(state.clone());
     let admin_routes = routes::admin::router(state.clone());
 
+    tracing_subscriber::fmt::init();
+
     // build our application with a route
     let router = Router::new()
         .nest_service("/assets", ServeDir::new(&config.assets))
-        .layer(TraceLayer::new_for_http())
         .with_state(state.clone())
         .merge(article_routes)
         .merge(auth_routes)
-        .merge(admin_routes);
+        .merge(admin_routes)
+        .layer(TraceLayer::new_for_http());
 
     // run it
     let listener = tokio::net::TcpListener::bind(&config.address)
