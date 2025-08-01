@@ -60,10 +60,12 @@ impl AccountConfig {
 
     pub async fn write_to_file<P>(&self, path: P) -> Result<(), tokio::io::Error>
     where P : AsRef<Path> {
-        let mut file = File::create(path).await?;
+        let path = path.as_ref();
+        let tmp_path = path.with_added_extension("tmp");
+        let mut file = File::create_new(&tmp_path).await?;
         let toml = toml::to_string_pretty(&self).expect("TOML Serialization should always succeed.");
         file.write_all(toml.as_bytes()).await?;
-        Ok(())
+        Ok(tokio::fs::rename(tmp_path, path).await?)
     }
 }
 

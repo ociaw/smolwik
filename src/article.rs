@@ -103,9 +103,12 @@ impl RawArticle {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
+        
 
-        let file = File::create(path).await?;
-        Ok(self.write(file).await?)
+        let tmp_path = path.with_added_extension("tmp");
+        let file = File::create_new(&tmp_path).await?;
+        self.write(file).await?;
+        Ok(tokio::fs::rename(tmp_path, path).await?)
     }
 
     pub async fn write(&self, mut file: File) -> Result<(), ArticleWriteError> {
