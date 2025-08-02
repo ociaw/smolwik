@@ -122,6 +122,6 @@ async fn load_account_config(state: &AppState, user: &User) -> Result<AccountCon
 async fn save_account_config(state: &AppState, user: &User, config: &AccountConfig) -> Result<(), Response> {
     match config.write_to_file("accounts.toml").await {
         Ok(()) => Ok(()),
-        Err(err) => Err(render_error(&state, &user, ErrorMessage::internal_error(err.to_string()))),
+        Err(err) => Err(render_error(&state, &user, err.into())),
     }
 }

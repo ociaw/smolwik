@@ -103,7 +103,6 @@ impl RawArticle {
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        
 
         let tmp_path = path.with_added_extension("tmp");
         let file = File::create_new(&tmp_path).await?;
@@ -151,6 +150,8 @@ impl From<io::Error> for ArticleReadError {
 
 #[derive(Error, Debug)]
 pub enum ArticleWriteError {
+    #[error("Conflicting write in progress.")]
+    ConflictingWriteInProgress,
     /// Indicates that the requested article's path is invalid.
     #[error("Invalid path")]
     InvalidPath,
@@ -163,6 +164,7 @@ impl From<io::Error> for ArticleWriteError {
     fn from(value: Error) -> Self {
         match value.kind() {
             ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => ArticleWriteError::InvalidPath,
+            ErrorKind::AlreadyExists => ArticleWriteError::ConflictingWriteInProgress,
             _ => ArticleWriteError::IoError(value),
         }
     }

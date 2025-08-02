@@ -5,11 +5,28 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::auth::{Access, Account, AuthenticationMode, Username};
 
 #[derive(thiserror::Error, Debug)]
-pub enum ConfigError {
+pub enum ConfigReadError {
     #[error("IO error: {0}")]
     Io(#[from] tokio::io::Error),
     #[error("Deserialization error: {0}")]
     Serde(#[from] toml::de::Error),
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ConfigWriteError {
+    #[error("Conflicting write in progress.")]
+    ConflictingWriteInProgress,
+    #[error("IO error: {0}")]
+    Io(tokio::io::Error)
+}
+
+impl From<tokio::io::Error> for ConfigWriteError {
+    fn from(err: tokio::io::Error) -> Self {
+        match err.kind() {
+            tokio::io::ErrorKind::AlreadyExists => ConfigWriteError::ConflictingWriteInProgress,
+            _ => ConfigWriteError::Io(err),
+        }
+    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -37,7 +54,7 @@ impl Config {
         key_string
     }
 
-    pub async fn from_file<P>(path: P) -> Result<Config, ConfigError>
+    pub async fn from_file<P>(path: P) -> Result<Config, ConfigReadError>
     where P : AsRef<Path> {
         let mut file = File::open(path).await?;
         let mut str = String::new();
@@ -83,7 +100,7 @@ impl AccountConfig {
         self.accounts.iter().find(|acc| &acc.username == username)
     }
 
-    pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigError>
+    pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigReadError>
     where P : AsRef<Path> {
         let mut file = File::open(path).await?;
         let mut str = String::new();
@@ -91,7 +108,7 @@ impl AccountConfig {
         Ok(toml::from_str(&str)?)
     }
 
-    pub async fn write_to_file<P>(&self, path: P) -> Result<(), tokio::io::Error>
+    pub async fn write_to_file<P>(&self, path: P) -> Result<(), ConfigWriteError>
     where P : AsRef<Path> {
         let path = path.as_ref();
         let tmp_path = path.with_added_extension("tmp");

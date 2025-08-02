@@ -2,7 +2,7 @@ use std::error::Error;
 use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
-use crate::config::ConfigError;
+use crate::config::{ConfigReadError, ConfigWriteError};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorMessage {
@@ -114,6 +114,10 @@ impl From<ArticleWriteError> for ErrorMessage {
     fn from(value: ArticleWriteError) -> Self {
         match value {
             ArticleWriteError::InvalidPath => Self::bad_request(),
+            ArticleWriteError::ConflictingWriteInProgress => Self::conflict(
+                "Conflicting article update in progress",
+                "A conflicting update was made to article while saving this. Saving will clobber those changes."
+            ),
             ArticleWriteError::IoError(err) => Self::internal_error(err.to_string())
         }
     }
@@ -132,9 +136,21 @@ impl From<ArticleReadError> for ErrorMessage {
     }
 }
 
-impl From<ConfigError> for ErrorMessage {
-    fn from(value: ConfigError) -> Self {
+impl From<ConfigReadError> for ErrorMessage {
+    fn from(value: ConfigReadError) -> Self {
         Self::internal_error(value.to_string())
+    }
+}
+
+impl From<ConfigWriteError> for ErrorMessage {
+    fn from(value: ConfigWriteError) -> Self {
+        match value {
+            ConfigWriteError::ConflictingWriteInProgress => ErrorMessage::conflict(
+                "Conflicting accounts update in progress",
+                "A conflicting update was made to accounts.toml while saving this. Please try again."
+            ),
+            ConfigWriteError::Io(err) => Self::internal_error(err.to_string())
+        }
     }
 }
 
