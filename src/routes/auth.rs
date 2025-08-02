@@ -56,7 +56,9 @@ async fn post_handler(
 
     let user: Option<User> = match state.config.auth_mode {
         AuthenticationMode::Anonymous => unreachable!(),
-        AuthenticationMode::Single => account_config.single_password.map_or(false, |p| p == form.password).then(|| User::SingleUser),
+        AuthenticationMode::Single => account_config.single_password
+            .map_or(false, |hash| verify_password(&form.password, &hash).is_ok())
+            .then(|| User::SingleUser),
         AuthenticationMode::Multi => {
             match &form.username {
                 None => None,

@@ -15,7 +15,7 @@ pub enum ConfigError {
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub address: String,
-    #[serde(with="base64")]
+    #[serde(with="base64serde")]
     pub secret_key: Vec<u8>,
     pub auth_mode: AuthenticationMode,
     pub create_access: Access,
@@ -26,6 +26,17 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn generate_secret_key(&mut self) -> String {
+        use base64::prelude::*;
+        use rand_core::RngCore;
+        let mut random_key = vec![0u8; 64];
+        rand_core::OsRng::default().fill_bytes(&mut random_key);
+        let key_string = BASE64_STANDARD.encode(&random_key);
+
+        self.secret_key = random_key;
+        key_string
+    }
+
     pub async fn from_file<P>(path: P) -> Result<Config, ConfigError>
     where P : AsRef<Path> {
         let mut file = File::open(path).await?;
@@ -42,6 +53,28 @@ pub struct AccountConfig {
 }
 
 impl AccountConfig {
+    /// Validates that the specified single-user password is set and is a valid password hash.
+    pub fn validate_single_user_password(&self) -> bool {
+        use argon2::PasswordHash;
+        match &self.single_password {
+            None => false,
+            Some(hash) => PasswordHash::new(hash).is_ok()
+        }
+    }
+
+    pub fn generate_single_user_password(&mut self) -> String {
+        use base64::prelude::*;
+        use rand_core::RngCore;
+
+        // Generate a new 120-bit password and encode with base64
+        let mut bits = vec![0u8; 15];
+        rand_core::OsRng::default().fill_bytes(&mut bits);
+        let password = BASE64_STANDARD.encode(&bits);
+
+        self.single_password = Some(crate::auth::hash_password(&password));
+        password
+    }
+
     pub fn find_by_username_mut(&mut self, username: &Username) -> Option<&mut Account> {
         self.accounts.iter_mut().find(|acc| &acc.username == username)
     }
@@ -69,7 +102,7 @@ impl AccountConfig {
     }
 }
 
-mod base64 {
+mod base64serde {
     use serde::{Deserialize, Deserializer};
     use base64::Engine;
 

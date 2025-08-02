@@ -32,13 +32,36 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
-    let config = match Config::from_file("config.toml").await {
-        Ok(c) => Arc::new(c),
+    let mut config = match Config::from_file("config.toml").await {
+        Ok(c) => c,
         Err(err) => {
             eprintln!("Couldn't open `config.toml`: {}", err.to_string());
             return
         }
     };
+
+    // Ensure we have a valid secret key define.
+    if config.secret_key.len() < 64 {
+        let key_string = config.generate_secret_key();
+        eprintln!("WARN: Empty or weak secret_key found in configuration. Using temp value; to make permanent, update config.toml with {key_string}");
+    }
+    let config = Arc::new(config);
+
+    let mut account_config = match AccountConfig::from_file("accounts.toml").await {
+        Ok(c) => c,
+        Err(err) => {
+            eprintln!("Couldn't open `accounts.toml`: {}", err.to_string());
+            return
+        }
+    };
+    if !account_config.validate_single_user_password() && config.auth_mode == auth::AuthenticationMode::Single {
+        let password = account_config.generate_single_user_password();
+        eprintln!("WARN: Missing or invalid single-user password specified. Updating password to {password}");
+
+        if let Err(err) = account_config.write_to_file("accounts.toml").await {
+            eprintln!("ERR: Failed to update accounts.toml. Authentication will not be possible.\n {err}")
+        }
+    }
 
     let state = AppState {
         renderer: Renderer::new((*config).clone()).unwrap().into(),

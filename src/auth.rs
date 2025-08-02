@@ -44,17 +44,32 @@ impl Account {
     }
 
     pub fn set_password(&mut self, password: &str) {
-        use argon2::{
-            password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-            Argon2
-        };
-
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
-
-        self.password = hash.to_string();
+        self.password = hash_password(password);
     }
+}
+
+pub fn verify_password(password: &str, existing_hash: &str) -> Result<(),()> {
+    use argon2::{
+        password_hash::{PasswordHash, PasswordVerifier},
+        Argon2
+    };
+
+    let existing_hash = PasswordHash::new(existing_hash).map_err(|_| ())?;
+    let argon2 = Argon2::default();
+    argon2.verify_password(password.as_bytes(), &existing_hash).map_err(|_| ())
+}
+
+pub fn hash_password(password: &str) -> String {
+    use argon2::{
+        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+        Argon2
+    };
+
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
+
+    hash.to_string()
 }
 
 #[derive(Deserialize, Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]

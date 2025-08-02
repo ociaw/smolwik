@@ -1231,6 +1231,7 @@ dependencies = [
  "base64",
  "http",
  "pulldown-cmark",
+ "rand_core",
  "serde",
  "serde_json",
  "tera",

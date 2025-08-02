@@ -29,7 +29,7 @@ struct AddAccountForm {
 
 #[derive(Deserialize)]
 struct ChangePasswordForm {
-    pub username: Username,
+    pub username: Option<Username>,
     pub password: String,
 }
 
@@ -99,10 +99,14 @@ async fn change_password_post_handler(
         Err(err) => return Err(render_error(&state, &user, err.into())),
     };
 
-    match account_config.find_by_username_mut(&form.username) {
-        Some(acc) => acc.set_password(&form.password),
-        None => return Err(render_error(&state, &user, ErrorMessage::account_not_found(&form.username))),
-    };
+    match &form.username {
+        Some(username) =>
+            match account_config.find_by_username_mut(username) {
+                Some(acc) => acc.set_password(&form.password),
+                None => return Err(render_error(&state, &user, ErrorMessage::account_not_found(username))),
+            },
+        None => account_config.single_password = Some(hash_password(&form.password)),
+    }
 
     save_account_config(&state, &user, &account_config).await
         .map_or_else(|err| Err(err), |_| Ok(Redirect::to("/")))

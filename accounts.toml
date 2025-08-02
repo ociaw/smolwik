@@ -1,5 +1,5 @@
-single_password = "test"
+single_password = ""
 
 [[accounts]]
 username = "demo"
-password = "null"
+password = ""

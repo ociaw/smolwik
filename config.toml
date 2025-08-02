@@ -2,12 +2,11 @@
 address = "127.0.0.1:8080"
 
 # The base-64 encoded secret key used for deriving other cryptographic keys, such as a signing key for cookies
-# secret_key = ""
-secret_key = "eGBH3mml7giOCQM979GPslRqGf6/03duVMpS+qyV3C/nh1EJUDxh4dcw0J39a1nk9dBajdw/sGokQzpFHkxQkw=="
+secret_key = ""
 # The authentication mode used - Anonymous, Single, or Multi
 # Anonymous disable authentication and login entirely. Any articles that require an authenticated account to access cannot
 # be accessed. Creating articles is only possible if create_access is "Anonymous"
-auth_mode = "Multi"
+auth_mode = "Single"
 
 # Specifies who is allowed to create new articles. Anonymous is not recommended, unless smolwik is secured otherwise.
 # Anonymous, Authenticated, Accounts(),
