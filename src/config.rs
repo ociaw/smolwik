@@ -37,6 +37,7 @@ pub struct Config {
     pub auth_mode: AuthenticationMode,
     pub create_access: Access,
     pub administrator_access: Access,
+    pub discovery_access: Access,
     pub articles: PathBuf,
     pub assets: PathBuf,
     pub templates: String,

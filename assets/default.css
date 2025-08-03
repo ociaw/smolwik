@@ -18,6 +18,10 @@ nav {
     gap: 1em;
 }
 
+footer nav {
+    justify-content: center;
+}
+
 main {
     font-size: 1.125rem;
 }
@@ -218,6 +222,44 @@ td:not(:first-of-type) {
 td.action {
     width: 0;
     white-space: nowrap;
+}
+
+/* Discovery pages */
+.tree-root main {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: .5em;
+}
+.tree-node {
+    padding-left: .25em;
+}
+.tree-dir {
+    position: relative;
+    padding-top: .25em;
+    margin-bottom: .25em;
+}
+.tree-dir::after {
+    content: "";
+    background-image: linear-gradient(gray 2em, rgba(128, 128, 128, .5) 5em, rgba(128, 128, 128, .2) 10em, rgba(128, 128, 128, .1) 20em);
+    position: absolute;
+    bottom: 0;
+    left: -.25em;
+    height: 100%;
+    width: 2px;
+}
+.tree-dir header {
+    position: relative;
+    margin-bottom: .25em;
+    padding-bottom: .25em;
+}
+.tree-dir header::after {
+    content: "";
+    background-image: linear-gradient(to right, gray, rgba(128, 128, 128, 0));
+    position: absolute;
+    bottom: 0;
+    left: -.5em;
+    height: 2px;
+    width: 15em;
 }
 
 /* Dark Color Scheme Styling */

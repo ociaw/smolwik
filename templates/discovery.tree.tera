@@ -1,0 +1,27 @@
+{% extends "base.tera" %}
+{% macro print_directory(dir) %}
+    <section class="tree-node tree-dir">
+        <header>
+            {% if dir.has_index %}
+            <div><a href="{{ dir.url_path }}">{{ dir.name }}</a></div>
+            {% else %}
+            <div>{{ dir.name }}</div>
+            {% endif %}
+        </header>
+        <main>
+        {% for file in dir.files %}
+            <div class=tree-node><a href="{{ file.url_path }}">{{ file.name }}</a></div>
+        {% endfor %}
+        {% for directory in dir.directories %}
+            {{ self::print_directory(dir=directory) }}
+        {% endfor %}
+        </main>
+    </section>
+{% endmacro %}
+
+{% block content %}
+    <h1>{{ title }}</h1>
+    <div class="tree-node tree-root">
+    {{ self::print_directory(dir=discovery__tree_root) }}
+    </div>
+{% endblock %}

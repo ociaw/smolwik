@@ -4,16 +4,24 @@ address = "127.0.0.1:8080"
 # The base-64 encoded secret key used for deriving other cryptographic keys, such as a signing key for cookies
 secret_key = ""
 # The authentication mode used - Anonymous, Single, or Multi
-# Anonymous disable authentication and login entirely. Any articles that require an authenticated account to access cannot
+# "Anonymous" disables authentication and login entirely. Any articles that require an authenticated account to access cannot
 # be accessed. Creating articles is only possible if create_access is "Anonymous"
 auth_mode = "Single"
 
+# Access configuration determines site-wide actions a user can perform.
+# "Anonymous": Any visitor is authorized, regardless if they're signed in or not.
+# "Authenticated": Any authenticated visitor is authorized.
+# { Accounts = [ "demo" ] }: Only the users specfied are authorized.
+
 # Specifies who is allowed to create new articles. Anonymous is not recommended, unless smolwik is secured otherwise.
-# Anonymous, Authenticated, Accounts(),
 create_access = "Authenticated"
 
-# Specifies who can administer. Administrators can create other accounts.
+# Specifies who can administer. Administrators can create other accounts. Anonymous is not recommended.
 administrator_access = { Accounts = ["demo"] }
+
+# Specifies who can access "discovery" pages like the article tree and search. These can be more resource intensive,
+# so can be gated to authenticated users.
+discovery_access = "Anonymous"
 
 # The file system directories to use for articles, assets, and templates relative to the current directory.
 # The directory where the markdown files representing each article are saved. smolwik must be able to write, modify, and

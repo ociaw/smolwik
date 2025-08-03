@@ -71,6 +71,7 @@ async fn main() {
     let article_routes = routes::articles::router(state.clone());
     let auth_routes = routes::auth::router(state.clone());
     let admin_routes = routes::admin::router(state.clone());
+    let discovery_routes = routes::discovery::router(state.clone());
 
     tracing_subscriber::fmt::init();
 
@@ -81,6 +82,7 @@ async fn main() {
         .merge(article_routes)
         .merge(auth_routes)
         .merge(admin_routes)
+        .merge(discovery_routes)
         .layer(TraceLayer::new_for_http());
 
     // run it

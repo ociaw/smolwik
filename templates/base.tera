@@ -28,9 +28,12 @@
 <main>{% block content %}{% endblock content %}</main>
 <footer>
     {% block footer %}
+        <nav>
+            <div><a href=/special:tree>Index</a></div>
         {% if is_administrator %}
         <div><a href=/special:admin>Admin</a></div>
         {% endif %}
+        </nav>
         <div>powered by smolwik</div>
     {% endblock footer %}
 </footer>
