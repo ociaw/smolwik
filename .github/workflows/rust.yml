@@ -34,7 +34,7 @@ jobs:
         zip -r data.zip artifacts/data
 
     - name: Upload
-    - uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4
       with:
         name: smolwik-release
         path: artifacts/**
