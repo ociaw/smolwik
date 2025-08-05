@@ -26,11 +26,11 @@
      inkscape:pagecheckerboard="1"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="px"
-     inkscape:zoom="1.6048009"
-     inkscape:cx="245.82489"
-     inkscape:cy="252.99089"
-     inkscape:window-width="2560"
-     inkscape:window-height="1371"
+     inkscape:zoom="0.39545103"
+     inkscape:cx="-314.83039"
+     inkscape:cy="-212.41568"
+     inkscape:window-width="1805"
+     inkscape:window-height="1131"
      inkscape:window-x="0"
      inkscape:window-y="0"
      inkscape:window-maximized="1"
@@ -53,13 +53,46 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:400px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000"
-       x="9.0025015"
-       y="490.08887"
+       x="16.42119"
+       y="415.78421"
        id="text1"><tspan
          id="tspan1"
-         x="9.0025015"
-         y="490.08887"
+         x="16.42119"
+         y="415.78421"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:400px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O'"
-         sodipodi:role="line">Sw</tspan></text>
+         sodipodi:role="line">W</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:400px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000"
+       x="14.517478"
+       y="191.54527"
+       id="text1-3"><tspan
+         id="tspan1-5"
+         x="14.517478"
+         y="191.54527"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:400px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O'"
+         sodipodi:role="line" /></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:133.333px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000"
+       x="244.547"
+       y="110.58739"
+       id="text1-3-6"><tspan
+         id="tspan1-5-8"
+         x="244.547"
+         y="110.58739"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:133.333px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O'"
+         sodipodi:role="line">smol</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:200px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O';text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000"
+       x="336.73428"
+       y="417.83777"
+       id="text1-3-4"><tspan
+         id="tspan1-5-9"
+         x="336.73428"
+         y="417.83777"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:200px;font-family:'Linux Libertine Display O';-inkscape-font-specification:'Linux Libertine Display O'"
+         sodipodi:role="line">ik</tspan></text>
   </g>
 </svg>
