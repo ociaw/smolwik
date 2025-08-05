@@ -1,4 +1,4 @@
-name: Rust
+name: Build Package
 
 on:
   push:
@@ -11,16 +11,30 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
+
+    - name: Build (debug)
       run: cargo build --verbose
-    - name: Build Release
-      run: cargo build --release --verbose
-    - name: Run tests
+    - name: Run tests (debug)
       run: cargo test --verbose
-    - name: Run Release tests
+
+    - name: Build (release)
+      run: cargo build --release --verbose
+    - name: Run tests (release)
       run: cargo test --verbose --release
+
+    - name: Package
+      run: |
+        mkdir -p artifacts/data
+        cp -r articles assets config.toml accounts.toml artifacts/data
+        cp target/release/smolwik artifacts
+        zip -r data.zip artifacts/data
+
+    - name: Upload
+    - uses: actions/upload-artifact@v4
+      with:
+        name: smolwik-release
+        path: artifacts/**
