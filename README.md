@@ -14,7 +14,7 @@ permissions also exist for Page Creation, Administration, and Discovery.
 
 Markdown/CommonMark is the only supported format, with several extensions enabled, including strikethrough and tables.
 
-### Non-Features
+### Limitations
 There is no versioning. Once an article is changed, there is no backup copy kept. It is recommended to take automated
 snapshots and backups of the `articles/` directory at regular intervals.
 
