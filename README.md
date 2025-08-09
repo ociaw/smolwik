@@ -1,7 +1,7 @@
 # smolwik
 `smolwik` is a small and lightweight wiki designed for use at home by individuals, families, or other small groups. It can
 be used for a wide variety of purposes, such as notetaking, keeping recipes, or household documentation. `smolwik` is
-database-less - all articles and account details are stored as simple TOML and CommonMark files on the filesystem. this
+database-less - all articles and account details are stored as simple TOML and CommonMark files on the filesystem. This
 ensures that information can always be accessed by a simple text editor, and can easily be exported and backed up
 without worry.
 
@@ -14,9 +14,12 @@ permissions also exist for Page Creation, Administration, and Discovery.
 
 Markdown/CommonMark is the only supported format, with several extensions enabled, including strikethrough and tables.
 
-### Non-Features
-There is no versioning. Once an article is changed, there is no backup copy kept. It is recommended to take automated
-snapshots and backups of the `articles/` directory at regular intervals.
+### Current Limitations
+- No versioning. Once an article is changed, there is no backup copy kept. It is recommended to take
+automated snapshots and backups of the `articles/` directory at regular intervals.
+
+- No uploads. Media such as pictures, videos, or audio cannot be easily uploaded and then embedded. A workaround is
+possible by transferring files to the `assets/` folder, then linking to that.
 
 ## Running
 Download and extract the latest release from [GitHub](https://github.com/ociaw/smolwik/releases).
@@ -36,14 +39,33 @@ printed to standard out, allowing you to save and login with the password.
 ## Configuration
 - `address` - specifies the IPv4 or IPv6 address to listen at, along with the port. Defaults to `127.0.0.1:8080`.
 - `secret_key` - the key to perform cryptographic operations such as signing cookies. If empty, will be randomly
-on each start up.
-- `auth_mode` - Can be `Anonymous`, `Single`, or `Multi`.
+on each startup.
+- `auth_mode` - Can be `Anonymous`, `Single`, or `Multi`. See [Authentication Modes](#authentication-modes) for details.
+- `create_access` - Determines who is allowed to create new articles. See [Access](#access) for details.
+- `administrator_access` - Determines who is allowed to administer other accounts. See [Access](#access) for details.
+- `discovery_access` - Determines who is allowed to interact with so-called "discovery" endpoints, such as the site
+index. See [Access](#access) for details.
 
-Authentication Modes
------
+### Authentication Modes
 - Multi-User
+
+  Zero or more individual accounts, each with their own username and password. Access is fine-grained, and can be
+configured per-user.
+
 - Single-User
+
+  There are no individual user accounts. Authentication is gated by only a password - no username. The authenticated
+user has full access to the site.
+
 - Anonymous
+
+  Disables authentication and login entirely. Any articles or actions that require an authenticated account to access 
+cannot be accessed or performed at all.
+
+### Access
+- Anonymous
+- Authenticated
+- Accounts
 
 The authentication database is stored in the `accounts.toml` file. Each user has a username and a password hash. Optionally, `smolwik`
 can be run in single-user mode, where only a password is required. Authentication can also be disabled entirely,
@@ -84,14 +106,14 @@ the article title, and which users are allowed to edit and view the file. The Co
 (via [pulldown-cmark](https://pulldown-cmark.github.io/pulldown-cmark/cheat-sheet.html)) upon each page load.
 
 # License
-The `smolwik` software itself is licensed under AGPL 3.0, however, the templates and assets included are licensed under
+The `smolwik` software itself is licensed under AGPL 3.0; however, the templates and assets included are licensed under
 the less-restrictive BSD 2-Clause License. This allows private customization of how the wiki looks and feels, while
 ensuring the core backend software stays Free.
 
 Rough Idea:
 
 # Similar software
-If you like the idea of a database-less wiki, but want to look at other options, here are a few alternatives that fill a
+If you like the idea of a database-less wiki but want to look at other options, here are a few alternatives that fill a
 similar niche:
 - [DokuWiki](https://www.dokuwiki.org/dokuwiki) - Written in PHP
 - [deadwiki](https://crates.io/crates/deadwiki) - Written in Rust, but is unmaintained and archived

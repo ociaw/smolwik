@@ -1,9 +1,9 @@
 [package]
 name = "smolwik"
-version = "0.1.0"
+version = "0.1.0-alpha01"
 edition = "2024"
 authors = ["Michael Johnson <mjohnson@ociaw.com>"]
-license = "AGPL-3 AND BSD-2-Clause"
+license = "AGPL-3.0-or-later AND BSD-2-Clause"
 keywords = [ "wiki", "markdown" ]
 description = "Small, simple wiki using no database, with home and small-scale usage in mind"
 homepage = "https://smolwik.com"
