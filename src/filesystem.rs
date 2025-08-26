@@ -38,9 +38,8 @@ impl WritableFile {
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub(crate)))]
 pub enum FileWriteError {
-    #[snafu(display("Conflicting write in progress to {}: {}", filepath.display(), source))]
+    #[snafu(display("Conflicting write in progress to {}", filepath.display()))]
     ConflictingWriteInProgress {
-        source: io::Error,
         filepath: PathBuf,
         tmp_path: PathBuf,
     },
@@ -61,7 +60,6 @@ impl FileWriteError {
             io::ErrorKind::AlreadyExists => Self::ConflictingWriteInProgress {
                 tmp_path,
                 filepath: path,
-                source,
             },
             _ => Self::UnhandlableIoError { filepath: path, source },
         }

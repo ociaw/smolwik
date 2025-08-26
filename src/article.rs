@@ -153,9 +153,8 @@ impl From<io::Error> for ArticleReadError {
 
 #[derive(Snafu, Debug)]
 pub enum ArticleWriteError {
-    #[snafu(display("Conflicting write in progress to {}: {}", path, source))]
+    #[snafu(display("Conflicting write in progress to {}.", path))]
     ConflictingWriteInProgress {
-        source: FileWriteError,
         path: String,
     },
     /// Indicates that the article's path is invalid.
@@ -177,7 +176,7 @@ impl ArticleWriteError {
         use crate::article::ArticleWriteError::*;
 
         match &err {
-            FileWriteError::ConflictingWriteInProgress { source: _, filepath: _, .. } => ConflictingWriteInProgress { source: err, path },
+            FileWriteError::ConflictingWriteInProgress { filepath: _, .. } => ConflictingWriteInProgress { path },
             FileWriteError::UnhandlableIoError { source, filepath: _ } => match source.kind() {
                 ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => InvalidPath { source: err, path },
                 _ => UnhandlableIoError { source: err, path },

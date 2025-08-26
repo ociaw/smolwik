@@ -114,10 +114,10 @@ impl ErrorMessage {
 impl From<ArticleWriteError> for ErrorMessage {
     fn from(value: ArticleWriteError) -> Self {
         match value {
-            ArticleWriteError::InvalidPath { source: _, path } => Self::bad_request_with_details(format!("Not a valid path: {path}")),
-            ArticleWriteError::ConflictingWriteInProgress { source: _, path: _ } => Self::conflict(
+            ArticleWriteError::InvalidPath { source: _, path } => Self::bad_request_with_details(format!("Not a valid path: <code>{path}</code>")),
+            ArticleWriteError::ConflictingWriteInProgress { path } => Self::conflict(
                 "Conflicting article update in progress",
-                "A conflicting update was made to article while saving this. Saving will clobber those changes."
+                format!("A conflicting update was made to the article at <code>{path}</code> while saving this. Saving will clobber those changes.")
             ),
             ArticleWriteError::UnhandlableIoError { source: _, path: _ } => Self::internal_error(value.to_string())
         }
@@ -146,7 +146,7 @@ impl From<ConfigReadError> for ErrorMessage {
 impl From<FileWriteError> for ErrorMessage {
     fn from(value: FileWriteError) -> Self {
         match value {
-            FileWriteError::ConflictingWriteInProgress { source: _, filepath, tmp_path: _ } => {
+            FileWriteError::ConflictingWriteInProgress { filepath, tmp_path: _ } => {
                 let filename = filepath.file_name().expect("File name should always be valid here.").to_string_lossy();
                 ErrorMessage::conflict(
                     "Conflicting file update in progress",
