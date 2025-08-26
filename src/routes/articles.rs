@@ -110,7 +110,7 @@ async fn post_handler(
         markdown: form.cmark.clone(),
     };
 
-    match raw_article.write_to_path(&pathset.md).await {
+    match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
@@ -177,7 +177,7 @@ async fn create_post_handler(
         markdown: form.cmark.clone(),
     };
 
-    match raw_article.write_to_path(&pathset.md).await {
+    match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => Err(render_error(&state, &user, ErrorMessage::from(err)))
     }

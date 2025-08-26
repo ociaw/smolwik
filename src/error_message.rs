@@ -2,7 +2,8 @@ use std::error::Error;
 use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
-use crate::config::{ConfigReadError, ConfigWriteError};
+use crate::config::ConfigReadError;
+use crate::filesystem::FileWriteError;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorMessage {
@@ -113,12 +114,12 @@ impl ErrorMessage {
 impl From<ArticleWriteError> for ErrorMessage {
     fn from(value: ArticleWriteError) -> Self {
         match value {
-            ArticleWriteError::InvalidPath => Self::bad_request(),
-            ArticleWriteError::ConflictingWriteInProgress => Self::conflict(
+            ArticleWriteError::InvalidPath { source: _, path } => Self::bad_request_with_details(format!("Not a valid path: {path}")),
+            ArticleWriteError::ConflictingWriteInProgress { source: _, path: _ } => Self::conflict(
                 "Conflicting article update in progress",
                 "A conflicting update was made to article while saving this. Saving will clobber those changes."
             ),
-            ArticleWriteError::IoError(err) => Self::internal_error(err.to_string())
+            ArticleWriteError::UnhandlableIoError { source: _, path: _ } => Self::internal_error(value.to_string())
         }
     }
 }
@@ -142,14 +143,16 @@ impl From<ConfigReadError> for ErrorMessage {
     }
 }
 
-impl From<ConfigWriteError> for ErrorMessage {
-    fn from(value: ConfigWriteError) -> Self {
+impl From<FileWriteError> for ErrorMessage {
+    fn from(value: FileWriteError) -> Self {
         match value {
-            ConfigWriteError::ConflictingWriteInProgress => ErrorMessage::conflict(
-                "Conflicting accounts update in progress",
-                "A conflicting update was made to accounts.toml while saving this. Please try again."
-            ),
-            ConfigWriteError::Io(err) => Self::internal_error(err.to_string())
+            FileWriteError::ConflictingWriteInProgress { source: _, filepath, tmp_path: _ } => {
+                let filename = filepath.file_name().expect("File name should always be valid here.").to_string_lossy();
+                ErrorMessage::conflict(
+                    "Conflicting file update in progress",
+                    format!("A conflicting update was made to {filename} while saving this. Please try again.")
+            )},
+            FileWriteError::UnhandlableIoError { source, filepath: _ } => Self::internal_error(source.to_string())
         }
     }
 }

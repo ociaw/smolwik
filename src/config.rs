@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use snafu::ResultExt;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::auth::{Access, Account, AuthenticationMode, Username};
+use crate::filesystem::{FileWriteError, UnhandlableIoSnafu, WritableFile};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ConfigReadError {
@@ -10,23 +12,6 @@ pub enum ConfigReadError {
     Io(#[from] tokio::io::Error),
     #[error("Deserialization error: {0}")]
     Serde(#[from] toml::de::Error),
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum ConfigWriteError {
-    #[error("Conflicting write in progress.")]
-    ConflictingWriteInProgress,
-    #[error("IO error: {0}")]
-    Io(tokio::io::Error)
-}
-
-impl From<tokio::io::Error> for ConfigWriteError {
-    fn from(err: tokio::io::Error) -> Self {
-        match err.kind() {
-            tokio::io::ErrorKind::AlreadyExists => ConfigWriteError::ConflictingWriteInProgress,
-            _ => ConfigWriteError::Io(err),
-        }
-    }
 }
 
 #[derive(Deserialize, Clone)]
@@ -109,14 +94,14 @@ impl AccountConfig {
         Ok(toml::from_str(&str)?)
     }
 
-    pub async fn write_to_file<P>(&self, path: P) -> Result<(), ConfigWriteError>
+    pub async fn write_to_file<P>(&self, path: P) -> Result<(), FileWriteError>
     where P : AsRef<Path> {
-        let path = path.as_ref();
-        let tmp_path = path.with_added_extension("tmp");
-        let mut file = File::create_new(&tmp_path).await?;
+        let filepath = path.as_ref();
+        let mut file = WritableFile::open(filepath).await?;
         let toml = toml::to_string_pretty(&self).expect("TOML Serialization should always succeed.");
-        file.write_all(toml.as_bytes()).await?;
-        Ok(tokio::fs::rename(tmp_path, path).await?)
+        (&mut file.writer).write_all(toml.as_bytes()).await.with_context(|_| UnhandlableIoSnafu { filepath })?;
+        file.close().await?;
+        Ok(())
     }
 }
 

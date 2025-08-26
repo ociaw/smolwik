@@ -8,6 +8,7 @@ mod error_message;
 mod config;
 mod routes;
 mod extractors;
+mod filesystem;
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;

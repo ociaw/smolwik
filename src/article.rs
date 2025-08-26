@@ -1,12 +1,15 @@
 use crate::error_message::ErrorMessage;
+use crate::filesystem;
+use crate::filesystem::FileWriteError;
 use crate::metadata::Metadata;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use std::path::Path;
+use snafu::{ResultExt, Snafu};
 use thiserror::Error;
 use tokio::fs::File;
 use tokio::io;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, Error, ErrorKind};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Error, ErrorKind};
 
 const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
 const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
@@ -99,26 +102,26 @@ impl RawArticle {
         })
     }
 
-    pub async fn write_to_path(&self, path: &Path) -> Result<(), ArticleWriteError> {
-        if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
-        }
-
-        let tmp_path = path.with_added_extension("tmp");
-        let file = File::create_new(&tmp_path).await?;
-        self.write(file).await?;
-        Ok(tokio::fs::rename(tmp_path, path).await?)
+    pub async fn write_to_path(&self, filepath: &Path, url_path: &str) -> Result<(), ArticleWriteError> {
+        let mut file = filesystem::WritableFile::open(&filepath).await
+            .or_else(|e| Err(ArticleWriteError::from_file_write_error(e, url_path.to_owned())))?;
+        // Sure would be nice if we could use .context() here, but there's no way to make
+        // UnhandlableIoSnafu public.
+        self.write(&mut file.writer).await
+            .with_context(|_| filesystem::UnhandlableIoSnafu { filepath })
+            .with_context(|_| UnhandlableIoSnafu { path: url_path.to_owned() })?;
+        file.close().await.with_context(|_| UnhandlableIoSnafu { path: url_path.to_owned() })?;
+        Ok(())
     }
 
-    pub async fn write(&self, mut file: File) -> Result<(), ArticleWriteError> {
-
-        file.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
+    pub async fn write(&self, writer: &mut BufWriter<File>) -> Result<(), io::Error> {
+        writer.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
 
         let toml = toml::to_string_pretty(&self.metadata).expect("Metadata serialization failed. This should never happen.");
-        file.write_all(toml.as_bytes()).await?;
+        writer.write_all(toml.as_bytes()).await?;
 
-        file.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
-        file.write_all(self.markdown.as_bytes()).await?;
+        writer.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
+        writer.write_all(self.markdown.as_bytes()).await?;
         Ok(())
     }
 }
@@ -148,24 +151,37 @@ impl From<io::Error> for ArticleReadError {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Snafu, Debug)]
 pub enum ArticleWriteError {
-    #[error("Conflicting write in progress.")]
-    ConflictingWriteInProgress,
-    /// Indicates that the requested article's path is invalid.
-    #[error("Invalid path")]
-    InvalidPath,
+    #[snafu(display("Conflicting write in progress to {}: {}", path, source))]
+    ConflictingWriteInProgress {
+        source: FileWriteError,
+        path: String,
+    },
+    /// Indicates that the article's path is invalid.
+    #[snafu(display("Invalid file path {}: {}", path, source))]
+    InvalidPath {
+        source: FileWriteError,
+        path: String,
+    },
     /// Indicates that there was an error reading the file.
-    #[error("An error occurred writing the file at the provided path.")]
-    IoError(io::Error),
+    #[snafu(display("Error when writing to {}: {}", path, source))]
+    UnhandlableIoError{
+        source: FileWriteError,
+        path: String,
+    }
 }
 
-impl From<io::Error> for ArticleWriteError {
-    fn from(value: Error) -> Self {
-        match value.kind() {
-            ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => ArticleWriteError::InvalidPath,
-            ErrorKind::AlreadyExists => ArticleWriteError::ConflictingWriteInProgress,
-            _ => ArticleWriteError::IoError(value),
+impl ArticleWriteError {
+    pub fn from_file_write_error(err: FileWriteError, path: String) -> ArticleWriteError {
+        use crate::article::ArticleWriteError::*;
+
+        match &err {
+            FileWriteError::ConflictingWriteInProgress { source: _, filepath: _, .. } => ConflictingWriteInProgress { source: err, path },
+            FileWriteError::UnhandlableIoError { source, filepath: _ } => match source.kind() {
+                ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => InvalidPath { source: err, path },
+                _ => UnhandlableIoError { source: err, path },
+            }
         }
     }
 }
