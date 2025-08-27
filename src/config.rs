@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
-use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::auth::{Access, Account, AuthenticationMode, Username};
-use crate::filesystem::{FileWriteError, UnhandlableIoSnafu, WritableFile};
+use crate::filesystem;
+use crate::filesystem::{FileWriteError, UnhandlableWriteSnafu, WritableFile};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ConfigReadError {
@@ -42,9 +42,9 @@ impl Config {
 
     pub async fn from_file<P>(path: P) -> Result<Config, ConfigReadError>
     where P : AsRef<Path> {
-        let mut file = File::open(path).await?;
+        let mut file = filesystem::ReadableFile::open(path.as_ref()).await?;
         let mut str = String::new();
-        file.read_to_string(&mut str).await?;
+        file.reader.read_to_string(&mut str).await?;
         Ok(toml::from_str(&str)?)
     }
 }
@@ -88,9 +88,9 @@ impl AccountConfig {
 
     pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigReadError>
     where P : AsRef<Path> {
-        let mut file = File::open(path).await?;
+        let mut file = filesystem::ReadableFile::open(path.as_ref()).await?;
         let mut str = String::new();
-        file.read_to_string(&mut str).await?;
+        file.reader.read_to_string(&mut str).await?;
         Ok(toml::from_str(&str)?)
     }
 
@@ -99,7 +99,7 @@ impl AccountConfig {
         let filepath = path.as_ref();
         let mut file = WritableFile::open(filepath).await?;
         let toml = toml::to_string_pretty(&self).expect("TOML Serialization should always succeed.");
-        (&mut file.writer).write_all(toml.as_bytes()).await.with_context(|_| UnhandlableIoSnafu { filepath })?;
+        (&mut file.writer).write_all(toml.as_bytes()).await.with_context(|_| UnhandlableWriteSnafu { filepath })?;
         file.close().await?;
         Ok(())
     }

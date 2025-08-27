@@ -110,8 +110,6 @@ The `smolwik` software itself is licensed under AGPL 3.0; however, the templates
 the less-restrictive BSD 2-Clause License. This allows private customization of how the wiki looks and feels, while
 ensuring the core backend software stays Free.
 
-Rough Idea:
-
 # Similar software
 If you like the idea of a database-less wiki but want to look at other options, here are a few alternatives that fill a
 similar niche:

@@ -7,9 +7,8 @@ use axum::response::{Html, IntoResponse, Response};
 use std::path::Path;
 use snafu::{ResultExt, Snafu};
 use thiserror::Error;
-use tokio::fs::File;
 use tokio::io;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Error, ErrorKind};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, Error, ErrorKind};
 
 const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
 const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
@@ -59,9 +58,8 @@ pub struct RawArticle {
 
 impl RawArticle {
     pub async fn read_from_path(path: &Path) -> Result<RawArticle, ArticleReadError> {
-        let file = File::open(path).await?;
-        let mut reader = BufReader::new(file);
-        RawArticle::from_reader(&mut reader).await
+        let mut file = filesystem::ReadableFile::open(path).await?;
+        RawArticle::from_reader(&mut file.reader).await
     }
 
     pub async fn from_reader<R>(mut reader: R) -> Result<RawArticle, ArticleReadError>
@@ -105,16 +103,15 @@ impl RawArticle {
     pub async fn write_to_path(&self, filepath: &Path, url_path: &str) -> Result<(), ArticleWriteError> {
         let mut file = filesystem::WritableFile::open(&filepath).await
             .or_else(|e| Err(ArticleWriteError::from_file_write_error(e, url_path.to_owned())))?;
-        // Sure would be nice if we could use .context() here, but there's no way to make
-        // UnhandlableIoSnafu public.
         self.write(&mut file.writer).await
-            .with_context(|_| filesystem::UnhandlableIoSnafu { filepath })
-            .with_context(|_| UnhandlableIoSnafu { path: url_path.to_owned() })?;
-        file.close().await.with_context(|_| UnhandlableIoSnafu { path: url_path.to_owned() })?;
+            .with_context(|_| filesystem::UnhandlableWriteSnafu { filepath })
+            .with_context(|_| UnhandlableWriteSnafu { path: url_path.to_owned() })?;
+        file.close().await.with_context(|_| UnhandlableWriteSnafu { path: url_path.to_owned() })?;
         Ok(())
     }
 
-    pub async fn write(&self, writer: &mut BufWriter<File>) -> Result<(), io::Error> {
+    pub async fn write<W>(&self, writer: &mut W) -> Result<(), io::Error>
+        where W: io::AsyncWrite + Unpin {
         writer.write_all(MARKDOWN_SEPARATOR_LINUX.as_bytes()).await?;
 
         let toml = toml::to_string_pretty(&self.metadata).expect("Metadata serialization failed. This should never happen.");
@@ -165,7 +162,7 @@ pub enum ArticleWriteError {
     },
     /// Indicates that there was an error reading the file.
     #[snafu(display("Error when writing to {}: {}", path, source))]
-    UnhandlableIoError{
+    UnhandlableWriteError {
         source: FileWriteError,
         path: String,
     }
@@ -177,9 +174,9 @@ impl ArticleWriteError {
 
         match &err {
             FileWriteError::ConflictingWriteInProgress { filepath: _, .. } => ConflictingWriteInProgress { path },
-            FileWriteError::UnhandlableIoError { source, filepath: _ } => match source.kind() {
+            FileWriteError::UnhandlableWriteError { source, filepath: _ } => match source.kind() {
                 ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => InvalidPath { source: err, path },
-                _ => UnhandlableIoError { source: err, path },
+                _ => UnhandlableWriteError { source: err, path },
             }
         }
     }

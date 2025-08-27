@@ -119,7 +119,7 @@ impl From<ArticleWriteError> for ErrorMessage {
                 "Conflicting article update in progress",
                 format!("A conflicting update was made to the article at <code>{path}</code> while saving this. Saving will clobber those changes.")
             ),
-            ArticleWriteError::UnhandlableIoError { source: _, path: _ } => Self::internal_error(value.to_string())
+            ArticleWriteError::UnhandlableWriteError { source: _, path: _ } => Self::internal_error(value.to_string())
         }
     }
 }
@@ -152,7 +152,7 @@ impl From<FileWriteError> for ErrorMessage {
                     "Conflicting file update in progress",
                     format!("A conflicting update was made to {filename} while saving this. Please try again.")
             )},
-            FileWriteError::UnhandlableIoError { source, filepath: _ } => Self::internal_error(source.to_string())
+            FileWriteError::UnhandlableWriteError { source, filepath: _ } => Self::internal_error(source.to_string())
         }
     }
 }

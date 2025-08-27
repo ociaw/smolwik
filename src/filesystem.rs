@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use snafu::prelude::*;
 use tokio::fs::File;
 use tokio::io;
-use tokio::io::{AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncWriteExt, BufReader, BufWriter};
 
-/// A file that has been opened for writing. Uses a temp file to
+/// A file that has been opened for writing. Writes to a temp file and moves it to ensure resilience
+/// to power-loss or program crashing.
 pub struct WritableFile {
     pub path: PathBuf,
     pub writer: BufWriter<File>,
@@ -15,7 +16,7 @@ impl WritableFile {
     pub async fn open(path: impl Into<PathBuf>) -> Result<WritableFile, FileWriteError> {
         let path = path.into();
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await.with_context(|_| UnhandlableIoSnafu { filepath: path.clone() })?;
+            tokio::fs::create_dir_all(parent).await.with_context(|_| UnhandlableWriteSnafu { filepath: path.clone() })?;
         }
 
         let tmp_path = path.with_added_extension("tmp");
@@ -28,9 +29,9 @@ impl WritableFile {
     pub async fn close(self) -> Result<(), FileWriteError> {
         let WritableFile { path, mut writer, tmp_path } = self;
 
-        writer.flush().await.with_context(|_| UnhandlableIoSnafu { filepath: path.clone() })?;
+        writer.flush().await.with_context(|_| UnhandlableWriteSnafu { filepath: path.clone() })?;
         drop(writer);
-        tokio::fs::rename(&tmp_path, &path).await.with_context(|_| UnhandlableIoSnafu { filepath: path.clone() })?;
+        tokio::fs::rename(&tmp_path, &path).await.with_context(|_| UnhandlableWriteSnafu { filepath: path.clone() })?;
         Ok(())
     }
 }
@@ -45,7 +46,7 @@ pub enum FileWriteError {
     },
     /// Indicates that an unhandlable error occurred when writing to the file.
     #[snafu(display("Error when writing to {}: {}", filepath.display(), source))]
-    UnhandlableIoError {
+    UnhandlableWriteError {
         source: io::Error,
         filepath: PathBuf
     },
@@ -61,7 +62,24 @@ impl FileWriteError {
                 tmp_path,
                 filepath: path,
             },
-            _ => Self::UnhandlableIoError { filepath: path, source },
+            _ => Self::UnhandlableWriteError { filepath: path, source },
         }
+    }
+}
+
+/// A file that has been opened for reading.
+pub struct ReadableFile<'a> {
+    pub path: &'a Path,
+    pub reader: BufReader<File>,
+}
+
+impl<'a> ReadableFile<'a> {
+    pub async fn open(path: &'a Path) -> Result<ReadableFile<'a>, io::Error> {
+        let file = File::open(path).await?;
+        let reader = BufReader::new(file);
+        Ok(ReadableFile {
+            path,
+            reader
+        })
     }
 }
