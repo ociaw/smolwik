@@ -1242,7 +1242,6 @@ dependencies = [
  "serde_json",
  "snafu",
  "tera",
- "thiserror",
  "tokio",
  "toml",
  "tower-http",

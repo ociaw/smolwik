@@ -6,9 +6,8 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use std::path::Path;
 use snafu::{ResultExt, Snafu};
-use thiserror::Error;
 use tokio::io;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, Error, ErrorKind};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 
 const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
 const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
@@ -57,30 +56,34 @@ pub struct RawArticle {
 }
 
 impl RawArticle {
-    pub async fn read_from_path(path: &Path) -> Result<RawArticle, ArticleReadError> {
-        let mut file = filesystem::ReadableFile::open(path).await?;
-        RawArticle::from_reader(&mut file.reader).await
+    pub async fn read_from_path(filepath: &Path, path: &str) -> Result<RawArticle, ArticleReadError> {
+        let mut file = filesystem::ReadableFile::open(filepath).await.map_err(|source| match source.kind() {
+            io::ErrorKind::NotFound => ArticleReadError::NotFound { path: path.to_owned() },
+            _ => ArticleReadError::IoError { source, path: path.to_owned() },
+        })?;
+        RawArticle::from_reader(&mut file.reader, path).await
     }
 
-    pub async fn from_reader<R>(mut reader: R) -> Result<RawArticle, ArticleReadError>
+    pub async fn from_reader<R>(mut reader: R, path: &str) -> Result<RawArticle, ArticleReadError>
         where R: io::AsyncBufRead + Unpin
     {
         let mut str = String::new();
-        reader.read_line(&mut str).await?;
+        reader.read_line(&mut str).await
+            .with_context(|_| IoSnafu { path: path.to_owned() } )?;
         if !str.eq(MARKDOWN_SEPARATOR_LINUX) && !str.eq(MARKDOWN_SEPARATOR_WINDOWS) {
             eprintln!("Metadata start not found. Expected\n{}, found\n{}", MARKDOWN_SEPARATOR_LINUX, str);
-            return Err(ArticleReadError::MissingMetadataStart);
+            return Err(ArticleReadError::MissingMetadataStart { path: path.to_owned(), first_line: str })
         }
         drop(str);
 
         let mut metadata = String::new();
         let separator_len = loop {
-            match reader.read_line(&mut metadata).await? {
+            match reader.read_line(&mut metadata).await.with_context(|_| IoSnafu { path: path.to_owned() } )? {
                 // If we read 0 bytes, that means we've reached the end of file without finding the
                 // end marker.
                 0 => {
                     eprintln!("Metadata end not found. Expected\n{}", MARKDOWN_SEPARATOR_LINUX);
-                    return Err(ArticleReadError::MissingMetadataEnd)
+                    return Err(ArticleReadError::MissingMetadataEnd { path: path.to_owned() })
                 },
                 4 if metadata.ends_with(MARKDOWN_SEPARATOR_LINUX) => break 4,
                 5 if metadata.ends_with(MARKDOWN_SEPARATOR_WINDOWS) => break 5,
@@ -89,10 +92,12 @@ impl RawArticle {
         };
 
         metadata.truncate(metadata.len().saturating_sub(separator_len));
-        let metadata = toml::from_str(&metadata)?;
+        let metadata = toml::from_str(&metadata)
+            .with_context(|_| InvalidMetadataSnafu { path: path.to_owned() } )?;
 
         let mut markdown = String::new();
-        reader.read_to_string(&mut markdown).await?;
+        reader.read_to_string(&mut markdown).await
+            .with_context(|_| IoSnafu { path: path.to_owned() } )?;
 
         Ok(RawArticle {
             metadata,
@@ -123,29 +128,20 @@ impl RawArticle {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Snafu, Debug)]
 pub enum ArticleReadError {
     /// Indicates that the requested article's path is invalid or doesn't exist.
-    #[error("Article not found.")]
-    NotFound,
+    #[snafu(display("No article found at {}", path))]
+    NotFound { path: String },
     /// Indicates that there was an error reading the file.
-    #[error("An error occurred reading the file at the provided path.")]
-    IoError(io::Error),
-    #[error("The start of the metadata section could not be found.")]
-    MissingMetadataStart,
-    #[error("The end of the metadata section could not be found.")]
-    MissingMetadataEnd,
-    #[error("The metadata is not valid TOML.")]
-    InvalidMetadata(#[from] toml::de::Error),
-}
-
-impl From<io::Error> for ArticleReadError {
-    fn from(value: Error) -> Self {
-        match value.kind() {
-            ErrorKind::NotFound | ErrorKind::IsADirectory | ErrorKind::InvalidInput | ErrorKind::InvalidFilename => ArticleReadError::NotFound,
-            _ => ArticleReadError::IoError(value),
-        }
-    }
+    #[snafu(display("An error occurred reading the article at {}: {}", path, source))]
+    IoError { source: io::Error, path: String },
+    #[snafu(display("The start of the article metadata was not found in {}. Expected \n+++\nBut got\n{}", path, first_line))]
+    MissingMetadataStart { path: String, first_line: String },
+    #[snafu(display("The end of the article metadata was not found in {}: ", path))]
+    MissingMetadataEnd  { path: String },
+    #[snafu(display("Invalid non-TOML metadata found in article at {}: {}", path, source))]
+    InvalidMetadata { source: toml::de::Error, path: String },
 }
 
 #[derive(Snafu, Debug)]
@@ -171,6 +167,7 @@ pub enum ArticleWriteError {
 impl ArticleWriteError {
     pub fn from_file_write_error(err: FileWriteError, path: String) -> ArticleWriteError {
         use crate::article::ArticleWriteError::*;
+        use tokio::io::ErrorKind;
 
         match &err {
             FileWriteError::ConflictingWriteInProgress { filepath: _, .. } => ConflictingWriteInProgress { path },

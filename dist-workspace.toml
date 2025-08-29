@@ -15,12 +15,5 @@ targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-unkn
 install-path = "CARGO_HOME"
 # Whether to install an updater program
 install-updater = false
-
-include = [
-    "./articles/",
-    "./assets/",
-    "./templates/",
-    "accounts.toml",
-    "config.toml",
-    "agpl-3.0.md",
-]
+# Extra static files to include in each App (path relative to this Cargo.toml's dir)
+include = ["./articles/", "./assets/", "./templates/", "accounts.toml", "config.toml", "agpl-3.0.md"]

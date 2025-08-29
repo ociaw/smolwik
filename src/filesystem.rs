@@ -68,17 +68,15 @@ impl FileWriteError {
 }
 
 /// A file that has been opened for reading.
-pub struct ReadableFile<'a> {
-    pub path: &'a Path,
+pub struct ReadableFile {
     pub reader: BufReader<File>,
 }
 
-impl<'a> ReadableFile<'a> {
-    pub async fn open(path: &'a Path) -> Result<ReadableFile<'a>, io::Error> {
+impl<'a> ReadableFile {
+    pub async fn open(path: &'a Path) -> Result<ReadableFile, io::Error> {
         let file = File::open(path).await?;
         let reader = BufReader::new(file);
         Ok(ReadableFile {
-            path,
             reader
         })
     }

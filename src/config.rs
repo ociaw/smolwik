@@ -1,17 +1,21 @@
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
-use snafu::ResultExt;
+use snafu::{ResultExt, Snafu};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::auth::{Access, Account, AuthenticationMode, Username};
 use crate::filesystem;
 use crate::filesystem::{FileWriteError, UnhandlableWriteSnafu, WritableFile};
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Snafu, Debug)]
 pub enum ConfigReadError {
-    #[error("IO error: {0}")]
-    Io(#[from] tokio::io::Error),
-    #[error("Deserialization error: {0}")]
-    Serde(#[from] toml::de::Error),
+    #[snafu(display("Failed to read the configuration file: {}", source))]
+    Io {
+        source: tokio::io::Error,
+    },
+    #[snafu(display("Failed to deserialize the configuration file: {}", source))]
+    Serde {
+        source: toml::de::Error,
+    },
 }
 
 #[derive(Deserialize, Clone)]
@@ -42,10 +46,10 @@ impl Config {
 
     pub async fn from_file<P>(path: P) -> Result<Config, ConfigReadError>
     where P : AsRef<Path> {
-        let mut file = filesystem::ReadableFile::open(path.as_ref()).await?;
+        let mut file = filesystem::ReadableFile::open(path.as_ref()).await.context(IoSnafu)?;
         let mut str = String::new();
-        file.reader.read_to_string(&mut str).await?;
-        Ok(toml::from_str(&str)?)
+        file.reader.read_to_string(&mut str).await.context(IoSnafu)?;
+        Ok(toml::from_str(&str).context(SerdeSnafu)?)
     }
 }
 
@@ -88,10 +92,10 @@ impl AccountConfig {
 
     pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigReadError>
     where P : AsRef<Path> {
-        let mut file = filesystem::ReadableFile::open(path.as_ref()).await?;
+        let mut file = filesystem::ReadableFile::open(path.as_ref()).await.context(IoSnafu)?;
         let mut str = String::new();
-        file.reader.read_to_string(&mut str).await?;
-        Ok(toml::from_str(&str)?)
+        file.reader.read_to_string(&mut str).await.context(IoSnafu)?;
+        Ok(toml::from_str(&str).context(SerdeSnafu)?)
     }
 
     pub async fn write_to_file<P>(&self, path: P) -> Result<(), FileWriteError>

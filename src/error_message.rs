@@ -4,6 +4,7 @@ use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
 use crate::config::ConfigReadError;
 use crate::filesystem::FileWriteError;
+use crate::routes::discovery::DiscoveryTreeError;
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorMessage {
@@ -127,12 +128,23 @@ impl From<ArticleWriteError> for ErrorMessage {
 impl From<ArticleReadError> for ErrorMessage {
     fn from(value: ArticleReadError) -> Self {
         match value {
-            // For transient IO errors, we don't want to save the response, so we return an error.
-            ArticleReadError::IoError(err) => Self::internal_error(err.to_string()),
+            // For transient IO errors, we don't want to cache the response, so we return an error.
+            ArticleReadError::IoError { source, path: _ } => Self::internal_error(source.to_string()),
             // These errors are not transient, and need to be fixed in some way. We render the
             // article with an error message and return that.
-            ArticleReadError::NotFound => Self::path_not_found(""),
+            ArticleReadError::NotFound { path } => Self::path_not_found(&path),
             _ => Self::internal_error(value.to_string()),
+        }
+    }
+}
+
+impl From<DiscoveryTreeError> for ErrorMessage {
+    fn from(value: DiscoveryTreeError) -> Self {
+        match value {
+            // For transient IO errors, we don't want to cache the response, so we return an error.
+            DiscoveryTreeError::DirectoryOpenError { source } => Self::internal_error(source.to_string()),
+            DiscoveryTreeError::EntryOpenError { source } => Self::internal_error(source.to_string()),
+            DiscoveryTreeError::ArticleReadError { source } => Self::internal_error(source.to_string()),
         }
     }
 }

@@ -4,6 +4,7 @@ use crate::auth::*;
 use axum::extract::State;
 use axum::response::Response;
 use serde::Serialize;
+use snafu::{ResultExt, Snafu};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -25,6 +26,13 @@ pub struct DirectoryNode {
 pub struct FileNode {
     pub url_path: String,
     pub name: String,
+}
+
+#[derive(Debug, Snafu)]
+pub enum DiscoveryTreeError {
+    DirectoryOpenError { source: std::io::Error },
+    EntryOpenError { source: std::io::Error },
+    ArticleReadError { source: ArticleReadError },
 }
 
 impl DirectoryNode {
@@ -54,7 +62,7 @@ async fn tree_handler(State(state): State<AppState>, user: User) -> Result<Respo
     Ok(render_template_with_context(&state, &user, "discovery.tree.tera", "Index", context)?)
 }
 
-async fn recurse_directory(article_root: &Path, mut parent: &mut DirectoryNode) -> Result<(), ArticleReadError> {
+async fn recurse_directory(article_root: &Path, mut parent: &mut DirectoryNode) -> Result<(), DiscoveryTreeError> {
     // We populate and recurse separately - this ensures we only have one file handle at a time
     populate_directory(article_root, &mut parent).await?;
     for mut dir in &mut parent.directories {
@@ -63,23 +71,23 @@ async fn recurse_directory(article_root: &Path, mut parent: &mut DirectoryNode) 
     Ok(())
 }
 
-async fn populate_directory(article_root: &Path, dir: &mut DirectoryNode) -> Result<(), ArticleReadError> {
-    for entry in std::fs::read_dir(&dir.file_path)? {
-        let path = entry?.path();
-        let url_path = path
+async fn populate_directory(article_root: &Path, dir: &mut DirectoryNode) -> Result<(), DiscoveryTreeError> {
+    for entry in std::fs::read_dir(&dir.file_path).context(DirectoryOpenSnafu)? {
+        let filepath = entry.context(EntryOpenSnafu)?.path();
+        let path = filepath
             .strip_prefix(article_root).expect("All paths should be descendents of the article root.")
             .to_str().expect("All paths are expected to be valid UTF-8 strings.").to_owned();
-        if let Some(stem) = path.file_stem() && let Some(stem) = stem.to_str() {
+        if let Some(stem) = filepath.file_stem() && let Some(stem) = stem.to_str() {
             let stem = stem.to_owned();
-            if path.is_dir() {
-                dir.directories.push(DirectoryNode::new(path, url_path, stem))
-            } else if path.is_file()  {
-                let article = RawArticle::read_from_path(&path).await?;
+            if filepath.is_dir() {
+                dir.directories.push(DirectoryNode::new(filepath, path, stem))
+            } else if filepath.is_file()  {
+                let article = RawArticle::read_from_path(&filepath, &path).await.context(ArticleReadSnafu)?;
                 if stem == "index" {
                     dir.has_index = true;
                     dir.name = article.metadata.title.clone();
                 } else {
-                    dir.files.push(FileNode { url_path, name: article.metadata.title.clone() })
+                    dir.files.push(FileNode { url_path: path, name: article.metadata.title.clone() })
                 }
             }
         }

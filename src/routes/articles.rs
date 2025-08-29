@@ -56,7 +56,7 @@ async fn get_handler(
         Some(paths) => paths
     };
 
-    let raw = match RawArticle::read_from_path(&pathset.md).await {
+    let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
         Err(err) => return Err(render_error(&state, &user, err.into()))
     };
@@ -90,7 +90,7 @@ async fn post_handler(
         Some(paths) => paths
     };
 
-    let raw = match RawArticle::read_from_path(&pathset.md).await {
+    let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
         Err(err) => return Err(render_error(&state, &user, err.into()))
     };
