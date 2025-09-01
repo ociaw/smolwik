@@ -34,34 +34,40 @@ struct ChangePasswordForm {
 }
 
 #[debug_handler]
-async fn admin_get_handler(State(state): State<AppState>, user: User) -> Result<Response, Response> {
+async fn admin_get_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
     check_access(&user, &state, &state.config.administrator_access)?;
     let account_config = load_account_config(&state, &user).await.map_err(|err| err)?;
     let accounts = account_config.accounts.iter().map(|acc| &acc.username).collect::<Vec<_>>();
 
     let mut context = Context::new();
+    context.insert("title", "Admin");
     context.insert("admin__accounts", &accounts);
 
-    render_template_with_context(&state, &user, "admin.tera", "Admin", context)
+    Ok(TemplateResponse::from_template(state, user, "admin.tera", Some(context)))
 }
 
 #[debug_handler]
-async fn account_get_handler(State(state): State<AppState>, user: User, query: extract::Query<EditAccountQuery>) -> Result<Response, Response> {
+async fn account_get_handler(State(state): State<AppState>, user: User, query: extract::Query<EditAccountQuery>) -> Result<TemplateResponse, TemplateResponse> {
     check_access(&user, &state, &state.config.administrator_access)?;
 
     let account_config = load_account_config(&state, &user).await.map_err(|err| err)?;
-    let account = account_config.find_by_username(&query.username)
-        .ok_or(render_error(&state, &user, ErrorMessage::account_not_found(&query.username)))?;
+    let account = match account_config.find_by_username(&query.username) {
+        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::account_not_found(&query.username))),
+        Some(acc) => acc
+    };
 
     let mut context = Context::new();
+    context.insert("title", &format!("Editing Account {user}"));
     context.insert("admin__username", &account.username);
-    render_template_with_context(&state, &user, "admin.account.tera", "Edit Account", context)
+    Ok(TemplateResponse::from_template(state, user, "admin.account.tera", Some(context)))
 }
 
 #[debug_handler]
-async fn add_account_get_handler(State(state): State<AppState>, user: User) -> Result<Response, Response> {
+async fn add_account_get_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
     check_access(&user, &state, &state.config.administrator_access)?;
-    render_template(&state, &user, "admin.add_account.tera", "Add Account")
+    let mut context = Context::new();
+    context.insert("title", "Add Account");
+    Ok(TemplateResponse::from_template(state, user, "admin.add_account.tera", Some(context)))
 }
 
 #[debug_handler]
@@ -69,7 +75,7 @@ async fn add_account_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<AddAccountForm>
-) -> Result<Redirect, Response> {
+) -> Result<Redirect, TemplateResponse> {
     check_access(&user, &state, &state.config.administrator_access)?;
 
     let mut account_config = match load_account_config(&state, &user).await {
@@ -79,7 +85,11 @@ async fn add_account_post_handler(
 
     match account_config.find_by_username_mut(&form.username) {
         None => account_config.accounts.push(Account::new(form.username.clone(), &form.password)),
-        Some(acc) => return Err(render_error(&state, &user, ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username)))),
+        Some(acc) => return Err(TemplateResponse::from_error(
+            state,
+            user,
+            ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username))
+        )),
     };
 
     save_account_config(&state, &user, &account_config).await
@@ -91,19 +101,19 @@ async fn change_password_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<ChangePasswordForm>
-) -> Result<Redirect, Response> {
+) -> Result<Redirect, TemplateResponse> {
     check_access(&user, &state, &state.config.administrator_access)?;
 
     let mut account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(render_error(&state, &user, err.into())),
+        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into())),
     };
 
     match &form.username {
         Some(username) =>
             match account_config.find_by_username_mut(username) {
                 Some(acc) => acc.set_password(&form.password),
-                None => return Err(render_error(&state, &user, ErrorMessage::account_not_found(username))),
+                None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::account_not_found(username))),
             },
         None => account_config.single_password = Some(hash_password(&form.password)),
     }
@@ -112,16 +122,16 @@ async fn change_password_post_handler(
         .map_or_else(|err| Err(err), |_| Ok(Redirect::to("/")))
 }
 
-async fn load_account_config(state: &AppState, user: &User) -> Result<AccountConfig, Response> {
+async fn load_account_config(state: &AppState, user: &User) -> Result<AccountConfig, TemplateResponse> {
     match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => Ok(config),
-        Err(err) => Err(render_error(&state, &user, err.into())),
+        Err(err) => Err(TemplateResponse::from_error(state.clone(), user.clone(), err.into())),
     }
 }
 
-async fn save_account_config(state: &AppState, user: &User, config: &AccountConfig) -> Result<(), Response> {
+async fn save_account_config(state: &AppState, user: &User, config: &AccountConfig) -> Result<(), TemplateResponse> {
     match config.write_to_file("accounts.toml").await {
         Ok(()) => Ok(()),
-        Err(err) => Err(render_error(&state, &user, err.into())),
+        Err(err) => Err(TemplateResponse::from_error(state.clone(), user.clone(), err.into())),
     }
 }

@@ -1,4 +1,3 @@
-use pulldown_cmark::Options;
 use tera::{Context, Tera};
 use crate::*;
 use crate::auth::{Authorization, User};
@@ -31,21 +30,6 @@ impl Renderer {
         let mut ctx = self.build_context(user, title);
         ctx.extend(context);
         self.tera.render(template, &ctx)
-    }
-
-    pub fn render_article(&self, user: &User, raw: &RawArticle, template: &str) -> Result<String, tera::Error> {
-        let mut context = self.build_context(user, &raw.metadata.title);
-        context.insert("view_access", raw.metadata.view_access.variant_string());
-        context.insert("edit_access", raw.metadata.edit_access.variant_string());
-        context.insert("raw_cmark", &raw.markdown);
-
-        let parser = pulldown_cmark::Parser::new_ext(&raw.markdown, Options::all());
-        let mut rendered_cmark = String::new();
-        pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
-
-        context.insert("rendered_cmark", &rendered_cmark);
-
-        Ok(self.tera.render(template, &context)?)
     }
 
     /// Renders the error template with the provided title and error details. If the error template

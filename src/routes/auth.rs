@@ -1,12 +1,11 @@
 use crate::*;
 use crate::auth::*;
 use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::SignedCookieJar;
 use crate::extractors::Form;
+use crate::template::TemplateResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -22,17 +21,12 @@ pub struct LoginForm {
 }
 
 #[debug_handler]
-async fn get_handler(State(state): State<AppState>, user: User) -> Response {
+async fn get_handler(State(state): State<AppState>, user: User) -> TemplateResponse {
+    let mut context = Context::new();
+    context.insert("title", "Login");
     match &user {
-        User::Anonymous => state.renderer.render_template(&user, "login.tera", "Login").map_or_else(
-            |err| {
-                let mut response = state.renderer.render_error(&user, &err.into()).into_response();
-                *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-                response
-            },
-            |s| Html(s).into_response()
-        ),
-        _ => render_error(&state, &user, ErrorMessage::already_authenticated())
+        User::Anonymous => TemplateResponse::from_template(state, user, "login.tera", Some(context)),
+        _ => TemplateResponse::from_error(state, user, ErrorMessage::already_authenticated()),
     }
 }
 
@@ -41,17 +35,17 @@ async fn post_handler(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     form: Form<LoginForm>
-) -> Result<(SignedCookieJar, Redirect), Response> {
+) -> Result<(SignedCookieJar, Redirect), TemplateResponse> {
     let user = User::from(&jar);
     if user != User::Anonymous {
-        return Err(render_error(&state, &user, ErrorMessage::already_authenticated()))
+        return Err(TemplateResponse::from_error(state, user, ErrorMessage::already_authenticated()))
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
-        return Err(render_error(&state, &user, ErrorMessage::bad_request()))
+        return Err(TemplateResponse::from_error(state, user, ErrorMessage::bad_request()))
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(render_error(&state, &user, err.into())),
+        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into())),
     };
 
     let user: Option<User> = match state.config.auth_mode {
@@ -75,7 +69,7 @@ async fn post_handler(
     };
 
     let user = match user {
-        None => return Err(render_error(&state, &User::Anonymous, ErrorMessage::invalid_credentials())),
+        None => return Err(TemplateResponse::from_error(state, User::Anonymous, ErrorMessage::invalid_credentials())),
         Some(u) => u,
     };
 

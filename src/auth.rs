@@ -121,6 +121,16 @@ impl User {
     }
 }
 
+impl Display for User {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            User::Anonymous => write!(f, "Anonymous"),
+            User::SingleUser => write!(f, "Single User"),
+            User::Account(username) => write!(f, "{username}"),
+        }
+    }
+}
+
 impl From<SignedCookieJar> for User {
     fn from(value: SignedCookieJar) -> Self {
         Self::from(&value)

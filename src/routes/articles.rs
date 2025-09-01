@@ -4,9 +4,10 @@ use axum::extract::State;
 use axum::response::Redirect;
 use serde::Deserialize;
 use crate::auth::*;
-use crate::article::{RawArticle, RenderedArticle};
+use crate::article::RawArticle;
 use crate::*;
 use crate::extractors::Form;
+use crate::template::TemplateResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -50,15 +51,15 @@ async fn get_handler(
     extract::Path(path): extract::Path<String>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<RenderedArticle, RenderedArticle> {
+) -> Result<TemplateResponse, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-         None => return Err(render_error(&state, &user, ErrorMessage::path_not_found(&path))),
+        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(render_error(&state, &user, err.into()))
+        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into()))
     };
 
     let required = match &query.edit {
@@ -75,7 +76,8 @@ async fn get_handler(
         None => "article.tera",
     };
 
-    render_article(state, &user, raw, template)
+    let rendered = render_article(state, user, raw, template);
+    Ok(rendered)
 }
 
 #[debug_handler]
@@ -84,15 +86,15 @@ async fn post_handler(
     extract::Path(path): extract::Path<String>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, RenderedArticle> {
+) -> Result<Redirect, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(render_error(&state, &user, ErrorMessage::path_not_found(&path))),
+        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(render_error(&state, &user, err.into()))
+        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into()))
     };
 
     if let Err(err) = check_access(&user, &state, &raw.metadata.edit_access) {
@@ -114,7 +116,7 @@ async fn post_handler(
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(render_error(&state, &user, ErrorMessage::from(err)))
+            Err(TemplateResponse::from_error(state, user, ErrorMessage::from(err)))
         },
     }
 }
@@ -123,7 +125,7 @@ async fn root_get_handler(
     State(state): State<AppState>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<RenderedArticle, RenderedArticle> {
+) -> Result<TemplateResponse, TemplateResponse> {
     get_handler(State(state), extract::Path(String::new()), query, user).await
 }
 
@@ -131,23 +133,22 @@ async fn root_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, RenderedArticle> {
+) -> Result<Redirect, TemplateResponse> {
     post_handler(State(state), extract::Path(String::new()), user, form).await
 }
-
 
 #[debug_handler]
 async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
-) -> Result<RenderedArticle, RenderedArticle> {
+) -> Result<TemplateResponse, TemplateResponse> {
     if let Err(err) = check_access(&user, &state, &state.config.create_access) {
         return Err(err);
     }
 
     let template = "article_create.tera";
     let raw = RawArticle::default();
-    render_article(state, &user, raw, template)
+    Ok(render_article(state, user, raw, template))
 }
 
 #[debug_handler]
@@ -155,10 +156,10 @@ async fn create_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<CreateForm>,
-) -> Result<Redirect, RenderedArticle> {
+) -> Result<Redirect, TemplateResponse> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(render_error(&state, &user, ErrorMessage::bad_request())),
+        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::bad_request())),
         Some(paths) => paths
     };
 
@@ -179,27 +180,23 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(render_error(&state, &user, ErrorMessage::from(err)))
+        Err(err) => Err(TemplateResponse::from_error(state, user, ErrorMessage::from(err)))
     }
 }
 
-fn render_article(state: AppState, user: &User, raw: RawArticle, template: &str) -> Result<RenderedArticle, RenderedArticle> {
-    match state.renderer.render_article(&user, &raw, template) {
-        Ok(html) => Ok(RenderedArticle::ok(html)),
-        Err(err) => Err(RenderedArticle::internal_error(state.renderer.render_error(&user, &err.into())))
-    }
-}
+fn render_article(state: AppState, user: User, raw: RawArticle, template: &'static str) -> TemplateResponse {
+    let mut context = Context::new();
+    context.insert("view_access", raw.metadata.view_access.variant_string());
+    context.insert("edit_access", raw.metadata.edit_access.variant_string());
+    context.insert("raw_cmark", &raw.markdown);
+    context.insert("title", &raw.metadata.title);
 
-fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> RenderedArticle {
-    RenderedArticle::error(&error, state.renderer.render_error(&user, &error))
-}
+    let parser = pulldown_cmark::Parser::new_ext(&raw.markdown, pulldown_cmark::Options::all());
+    let mut rendered_cmark = String::new();
+    pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
+    context.insert("rendered_cmark", &rendered_cmark);
 
-fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), RenderedArticle> {
-    match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(render_error(state, &user, ErrorMessage::forbidden())),
-        Authorization::AuthenticationRequired => Err(render_error(state, &user, ErrorMessage::unauthenticated())),
-        _ => Ok(())
-    }
+    TemplateResponse::from_template(state, user, template, Some(context))
 }
 
 fn get_paths(config: &Config, path: &str) -> Option<ArticlePaths> {

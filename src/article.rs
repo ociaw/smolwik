@@ -1,9 +1,6 @@
-use crate::error_message::ErrorMessage;
 use crate::filesystem;
 use crate::filesystem::FileWriteError;
 use crate::metadata::Metadata;
-use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
 use std::path::Path;
 use snafu::{ResultExt, Snafu};
 use tokio::io;
@@ -11,43 +8,6 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 
 const MARKDOWN_SEPARATOR_LINUX: &'static str = "+++\n";
 const MARKDOWN_SEPARATOR_WINDOWS: &'static str = "+++\r\n";
-
-#[derive(Debug, Clone)]
-pub struct RenderedArticle {
-    pub status_code: StatusCode,
-    pub html: Html<String>,
-}
-
-impl RenderedArticle {
-    pub fn error(error: &ErrorMessage, html: String) -> RenderedArticle {
-        RenderedArticle {
-            status_code: error.status_code,
-            html: Html(html),
-        }
-    }
-
-    pub fn ok(html: String) -> RenderedArticle {
-        RenderedArticle {
-            status_code: StatusCode::OK,
-            html: Html(html),
-        }
-    }
-
-    pub fn internal_error(html: String) -> RenderedArticle {
-        RenderedArticle {
-            status_code: StatusCode::INTERNAL_SERVER_ERROR,
-            html: Html(html),
-        }
-    }
-}
-
-impl IntoResponse for RenderedArticle {
-    fn into_response(self) -> Response {
-        let mut response = self.html.into_response();
-        *response.status_mut() = self.status_code;
-        response
-    }
-}
 
 #[derive(Debug, Clone, Default)]
 pub struct RawArticle {

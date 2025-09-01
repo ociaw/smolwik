@@ -9,12 +9,16 @@ mod config;
 mod routes;
 mod extractors;
 mod filesystem;
+mod template;
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use axum::{debug_handler, routing::get, Router};
+use axum::middleware::{from_fn, Next};
 use axum::response::{Html, Redirect};
+use axum_core::body::Body;
 use axum_core::response::{IntoResponse, Response};
+use http::Request;
 use tower_http::{services::ServeDir, trace::TraceLayer};
 use serde::Deserialize;
 use tera::Context;
@@ -24,6 +28,7 @@ pub use crate::metadata::Metadata;
 use crate::article::RawArticle;
 use crate::auth::{Access, User};
 use crate::render::Renderer;
+use crate::template::TemplateResponse;
 
 #[derive(Clone)]
 struct AppState {
@@ -84,6 +89,7 @@ async fn main() {
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(discovery_routes)
+        .layer(from_fn(template_middleware))
         .layer(TraceLayer::new_for_http());
 
     // run it
@@ -94,6 +100,34 @@ async fn main() {
     axum::serve(listener, router).await.unwrap();
 }
 
+async fn template_middleware(request: Request<Body>, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let extensions = response.extensions_mut();
+    if extensions.len() == 0 {
+        return response
+    }
+
+    let context = extensions.remove::<Context>();
+    let error = extensions.remove::<ErrorMessage>();
+    let state = extensions.remove::<AppState>().expect("AppState must be set on extensions.");
+    let user = extensions.remove::<User>().expect("User must be set on extensions.");
+    let template = extensions.remove::<&'static str>().expect("String (Template) must be set.");
+    if let Some(error) = error {
+        return render_error(&state, &user, error);
+    }
+
+    if let Some(context) = context {
+        return match state.renderer.render_template_with_context(&user, &template, "", context) {
+            Ok(html) => Html(html).into_response(),
+            Err(err) => render_error(&state, &user, err.into()),
+        };
+    }
+
+    match state.renderer.render_template(&user, &template, "") {
+        Ok(html) => Html(html).into_response(),
+        Err(err) => render_error(&state, &user, err.into()),
+    }
+}
 
 fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response {
     let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
@@ -101,26 +135,12 @@ fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response 
     response
 }
 
-fn render_template(state: &AppState, user: &User, template: &str, title: &str) -> Result<Response, Response> {
-    state.renderer.render_template(&user, template, title).map_or_else(
-        |err| Err(render_error(state, user, err.into())),
-        |s| Ok(Html(s).into_response())
-    )
-}
-
-fn render_template_with_context(state: &AppState, user: &User, template: &str, title: &str, context: Context) -> Result<Response, Response> {
-    state.renderer.render_template_with_context(&user, template, title, context).map_or_else(
-        |err| Err(render_error(state, user, err.into())),
-        |s| Ok(Html(s).into_response())
-    )
-}
-
-fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), Response> {
+fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), TemplateResponse> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(render_error(state, user, ErrorMessage::forbidden())),
-        Authorization::AuthenticationRequired => Err(render_error(state, user, ErrorMessage::unauthenticated())),
+        Authorization::Unauthorized => Err(TemplateResponse::from_error(state.clone(), user.clone(), ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => Err(TemplateResponse::from_error(state.clone(), user.clone(), ErrorMessage::unauthenticated())),
         _ => Ok(())
     }
 }
