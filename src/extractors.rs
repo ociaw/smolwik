@@ -41,7 +41,6 @@ pub struct Form<T>(pub T);
 impl<T, S> FromRequest<S> for Form<T>
 where
     T: DeserializeOwned,
-    AppState: FromRef<S>,
     S: Send + Sync,
 {
     type Rejection = TemplateResponse;
