@@ -35,20 +35,19 @@ struct ChangePasswordForm {
 
 #[debug_handler]
 async fn admin_get_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
-    check_access(&user, &state, &state.config.administrator_access)?;
+    check_access(&user, &state.config.administrator_access, &state)?;
     let account_config = load_account_config(&state, &user).await.map_err(|err| err)?;
     let accounts = account_config.accounts.iter().map(|acc| &acc.username).collect::<Vec<_>>();
 
-    let mut context = Context::new();
-    context.insert("title", "Admin");
+    let mut context = context("Admin");
     context.insert("admin__accounts", &accounts);
 
-    Ok(TemplateResponse::from_template(state, user, "admin.tera", Some(context)))
+    Ok(TemplateResponse::from_template(state, user, "admin.tera", context))
 }
 
 #[debug_handler]
 async fn account_get_handler(State(state): State<AppState>, user: User, query: extract::Query<EditAccountQuery>) -> Result<TemplateResponse, TemplateResponse> {
-    check_access(&user, &state, &state.config.administrator_access)?;
+    check_access(&user, &state.config.administrator_access, &state)?;
 
     let account_config = load_account_config(&state, &user).await.map_err(|err| err)?;
     let account = match account_config.find_by_username(&query.username) {
@@ -56,18 +55,15 @@ async fn account_get_handler(State(state): State<AppState>, user: User, query: e
         Some(acc) => acc
     };
 
-    let mut context = Context::new();
-    context.insert("title", &format!("Editing Account {user}"));
+    let mut context = context(&format!("Editing Account {user}"));
     context.insert("admin__username", &account.username);
-    Ok(TemplateResponse::from_template(state, user, "admin.account.tera", Some(context)))
+    Ok(TemplateResponse::from_template(state, user, "admin.account.tera", context))
 }
 
 #[debug_handler]
 async fn add_account_get_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
-    check_access(&user, &state, &state.config.administrator_access)?;
-    let mut context = Context::new();
-    context.insert("title", "Add Account");
-    Ok(TemplateResponse::from_template(state, user, "admin.add_account.tera", Some(context)))
+    check_access(&user, &state.config.administrator_access, &state)?;
+    Ok(TemplateResponse::from_template(state, user, "admin.add_account.tera", context("Add Account")))
 }
 
 #[debug_handler]
@@ -76,7 +72,7 @@ async fn add_account_post_handler(
     user: User,
     form: Form<AddAccountForm>
 ) -> Result<Redirect, TemplateResponse> {
-    check_access(&user, &state, &state.config.administrator_access)?;
+    check_access(&user, &state.config.administrator_access, &state)?;
 
     let mut account_config = match load_account_config(&state, &user).await {
         Ok(config) => config,
@@ -102,7 +98,7 @@ async fn change_password_post_handler(
     user: User,
     form: Form<ChangePasswordForm>
 ) -> Result<Redirect, TemplateResponse> {
-    check_access(&user, &state, &state.config.administrator_access)?;
+    check_access(&user, &state.config.administrator_access, &state)?;
 
     let mut account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,

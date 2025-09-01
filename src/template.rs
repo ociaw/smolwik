@@ -8,8 +8,8 @@ pub struct TemplateResponse {
     pub state: AppState,
     pub user: User,
     pub template: &'static str,
+    pub context: Context,
     pub error: Option<ErrorMessage>,
-    pub context: Option<Context>,
 }
 
 impl IntoResponse for TemplateResponse {
@@ -19,11 +19,9 @@ impl IntoResponse for TemplateResponse {
         extensions.insert(self.state);
         extensions.insert(self.user);
         extensions.insert(self.template);
+        extensions.insert(self.context);
         if let Some(error) = self.error {
             extensions.insert(error);
-        }
-        if let Some(context) = self.context {
-            extensions.insert(context);
         }
         response
     }
@@ -35,18 +33,18 @@ impl TemplateResponse {
             state: state.into(),
             user: user.into(),
             template: "error",
+            context: Context::new(),
             error: Some(error),
-            context: None,
         }
     }
 
-    pub fn from_template(state: impl Into<AppState>, user: impl Into<User>, template: &'static str, context: Option<Context>) -> TemplateResponse {
+    pub fn from_template(state: impl Into<AppState>, user: impl Into<User>, template: &'static str, context: Context) -> TemplateResponse {
         TemplateResponse {
             state: state.into(),
             user: user.into(),
             template,
-            error: None,
             context,
+            error: None,
         }
     }
 }

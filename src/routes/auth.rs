@@ -22,10 +22,8 @@ pub struct LoginForm {
 
 #[debug_handler]
 async fn get_handler(State(state): State<AppState>, user: User) -> TemplateResponse {
-    let mut context = Context::new();
-    context.insert("title", "Login");
     match &user {
-        User::Anonymous => TemplateResponse::from_template(state, user, "login.tera", Some(context)),
+        User::Anonymous => TemplateResponse::from_template(state, user, "login.tera", context("Login")),
         _ => TemplateResponse::from_error(state, user, ErrorMessage::already_authenticated()),
     }
 }

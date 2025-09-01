@@ -50,17 +50,16 @@ impl DirectoryNode {
 
 #[debug_handler]
 async fn tree_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
-    check_access(&user, &state, &state.config.discovery_access)?;
+    check_access(&user, &state.config.discovery_access, &state)?;
 
     let mut root = DirectoryNode::new(&state.config.articles, "/", "");
     if let Err(err) = recurse_directory(&state.config.articles, &mut root).await {
         return Err(TemplateResponse::from_error(state, user, err.into()));
     }
 
-    let mut context = Context::new();
-    context.insert("title", "Artile Index");
+    let mut context = context("Article Index");
     context.insert("discovery__tree_root", &root);
-    Ok(TemplateResponse::from_template(state, user, "discovery.tree.tera", Some(context)))
+    Ok(TemplateResponse::from_template(state, user, "discovery.tree.tera", context))
 }
 
 async fn recurse_directory(article_root: &Path, mut parent: &mut DirectoryNode) -> Result<(), DiscoveryTreeError> {

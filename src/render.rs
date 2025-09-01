@@ -48,7 +48,7 @@ impl Renderer {
     }
 
     fn build_context(&self, user: &User, title: &str) -> Context {
-        let mut context = Context::new();
+        let mut context = context(title);
         context.insert("title", title);
         context.insert("auth_mode", self.config.auth_mode.variant_string());
         let authenticated = match user {

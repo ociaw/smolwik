@@ -67,7 +67,7 @@ async fn get_handler(
         None => &raw.metadata.view_access,
     };
 
-    if let Err(err) = check_access(&user, &state, &required) {
+    if let Err(err) = check_access(&user, &required, &state) {
         return Err(err);
     }
 
@@ -97,7 +97,7 @@ async fn post_handler(
         Err(err) => return Err(TemplateResponse::from_error(state, user, err.into()))
     };
 
-    if let Err(err) = check_access(&user, &state, &raw.metadata.edit_access) {
+    if let Err(err) = check_access(&user, &raw.metadata.edit_access, &state) {
         return Err(err);
     }
 
@@ -142,7 +142,7 @@ async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
 ) -> Result<TemplateResponse, TemplateResponse> {
-    if let Err(err) = check_access(&user, &state, &state.config.create_access) {
+    if let Err(err) = check_access(&user, &state.config.create_access, &state) {
         return Err(err);
     }
 
@@ -163,7 +163,7 @@ async fn create_post_handler(
         Some(paths) => paths
     };
 
-    if let Err(err) = check_access(&user, &state, &state.config.create_access) {
+    if let Err(err) = check_access(&user, &state.config.create_access, &state) {
         return Err(err);
     }
 
@@ -185,18 +185,17 @@ async fn create_post_handler(
 }
 
 fn render_article(state: AppState, user: User, raw: RawArticle, template: &'static str) -> TemplateResponse {
-    let mut context = Context::new();
+    let mut context = context(&raw.metadata.title);
     context.insert("view_access", raw.metadata.view_access.variant_string());
     context.insert("edit_access", raw.metadata.edit_access.variant_string());
     context.insert("raw_cmark", &raw.markdown);
-    context.insert("title", &raw.metadata.title);
 
     let parser = pulldown_cmark::Parser::new_ext(&raw.markdown, pulldown_cmark::Options::all());
     let mut rendered_cmark = String::new();
     pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
     context.insert("rendered_cmark", &rendered_cmark);
 
-    TemplateResponse::from_template(state, user, template, Some(context))
+    TemplateResponse::from_template(state, user, template, context)
 }
 
 fn get_paths(config: &Config, path: &str) -> Option<ArticlePaths> {

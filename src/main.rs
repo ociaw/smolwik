@@ -129,13 +129,22 @@ async fn template_middleware(request: Request<Body>, next: Next) -> Response {
     }
 }
 
+/// Creates a new template [Context] with the `title` key set to the specified value.
+pub(crate) fn context(title: &str) -> Context {
+    let mut context = Context::new();
+    context.insert("title", title);
+    context
+}
+
 fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response {
     let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
     *response.status_mut() = error.status_code;
     response
 }
 
-fn check_access(user: &User, state: &AppState, access: &Access) -> Result<(), TemplateResponse> {
+/// Checks if the specified user has the specified access. Returns an error response with an error
+/// message if the access check fails.
+fn check_access(user: &User, access: &Access, state: &AppState) -> Result<(), TemplateResponse> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
