@@ -1,14 +1,14 @@
-use axum_core::extract::{FromRequestParts, FromRef, FromRequest};
-use http::request::Parts;
-use std::convert::Infallible;
-use std::ops::Deref;
-use axum_core::response::Response;
+use crate::auth::User;
+use crate::template::TemplateResponse;
+use crate::AppState;
+use axum_core::extract::{FromRef, FromRequest, FromRequestParts};
 use axum_extra::extract::cookie::Key;
 use axum_extra::extract::SignedCookieJar;
+use http::request::Parts;
 use http::Request;
 use serde::de::DeserializeOwned;
-use crate::{render_error, AppState};
-use crate::auth::User;
+use std::convert::Infallible;
+use std::ops::Deref;
 
 impl<S> FromRequestParts<S> for User
 where
@@ -44,16 +44,14 @@ where
     AppState: FromRef<S>,
     S: Send + Sync,
 {
-    type Rejection = Response;
+    type Rejection = TemplateResponse;
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Form<T>, Self::Rejection> {
-        let (mut parts, body) = req.into_parts();
-        let user: User = User::from_request_parts(&mut parts, &state).await.unwrap();
+        let (parts, body) = req.into_parts();
         match axum::extract::Form::from_request(Request::from_parts(parts, body), state).await {
             Ok(f) => Ok(Form(f.0)),
             Err(e) => {
-                let state = AppState::from_ref(state);
-                Err(render_error(&state, &user, e.into()))
+                Err(TemplateResponse::from_error(e.into()))
             }
         }
     }

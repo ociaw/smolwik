@@ -14,7 +14,8 @@ mod template;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use axum::{debug_handler, routing::get, Router};
-use axum::middleware::{from_fn, Next};
+use axum::extract::State;
+use axum::middleware::{from_fn_with_state, Next};
 use axum::response::{Html, Redirect};
 use axum_core::body::Body;
 use axum_core::response::{IntoResponse, Response};
@@ -89,7 +90,7 @@ async fn main() {
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(discovery_routes)
-        .layer(from_fn(template_middleware))
+        .layer(from_fn_with_state(state.clone(), template_middleware))
         .layer(TraceLayer::new_for_http());
 
     // run it
@@ -100,30 +101,31 @@ async fn main() {
     axum::serve(listener, router).await.unwrap();
 }
 
-async fn template_middleware(request: Request<Body>, next: Next) -> Response {
+async fn template_middleware(State(state): State<AppState>, user: User, request: Request<Body>, next: Next) -> Response {
     let mut response = next.run(request).await;
     let extensions = response.extensions_mut();
     if extensions.len() == 0 {
+        // For routes that don't use extensions, just return the original response
         return response
     }
 
+    // Build a new response from the extension data.
     let context = extensions.remove::<Context>();
     let error = extensions.remove::<ErrorMessage>();
-    let state = extensions.remove::<AppState>().expect("AppState must be set on extensions.");
-    let user = extensions.remove::<User>().expect("User must be set on extensions.");
     let template = extensions.remove::<&'static str>().expect("String (Template) must be set.");
+    let title = extensions.remove::<String>().unwrap_or(String::new());
     if let Some(error) = error {
         return render_error(&state, &user, error);
     }
 
     if let Some(context) = context {
-        return match state.renderer.render_template_with_context(&user, &template, "", context) {
+        return match state.renderer.render_template_with_context(&user, &template, &title, context) {
             Ok(html) => Html(html).into_response(),
             Err(err) => render_error(&state, &user, err.into()),
         };
     }
 
-    match state.renderer.render_template(&user, &template, "") {
+    match state.renderer.render_template(&user, &template, &title) {
         Ok(html) => Html(html).into_response(),
         Err(err) => render_error(&state, &user, err.into()),
     }
@@ -144,12 +146,12 @@ fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response 
 
 /// Checks if the specified user has the specified access. Returns an error response with an error
 /// message if the access check fails.
-fn check_access(user: &User, access: &Access, state: &AppState) -> Result<(), TemplateResponse> {
+fn check_access(user: &User, access: &Access) -> Result<(), TemplateResponse> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(TemplateResponse::from_error(state.clone(), user.clone(), ErrorMessage::forbidden())),
-        Authorization::AuthenticationRequired => Err(TemplateResponse::from_error(state.clone(), user.clone(), ErrorMessage::unauthenticated())),
+        Authorization::Unauthorized => Err(TemplateResponse::from_error(ErrorMessage::forbidden())),
+        Authorization::AuthenticationRequired => Err(TemplateResponse::from_error(ErrorMessage::unauthenticated())),
         _ => Ok(())
     }
 }

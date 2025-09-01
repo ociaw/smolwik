@@ -53,13 +53,13 @@ async fn get_handler(
     user: User,
 ) -> Result<TemplateResponse, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::path_not_found(&path))),
+        None => return Err(TemplateResponse::from_error(ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into()))
+        Err(err) => return Err(TemplateResponse::from_error(err.into()))
     };
 
     let required = match &query.edit {
@@ -67,7 +67,7 @@ async fn get_handler(
         None => &raw.metadata.view_access,
     };
 
-    if let Err(err) = check_access(&user, &required, &state) {
+    if let Err(err) = check_access(&user, &required) {
         return Err(err);
     }
 
@@ -76,7 +76,7 @@ async fn get_handler(
         None => "article.tera",
     };
 
-    let rendered = render_article(state, user, raw, template);
+    let rendered = render_article(raw, template);
     Ok(rendered)
 }
 
@@ -88,16 +88,16 @@ async fn post_handler(
     form: Form<EditForm>
 ) -> Result<Redirect, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::path_not_found(&path))),
+        None => return Err(TemplateResponse::from_error(ErrorMessage::path_not_found(&path))),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(TemplateResponse::from_error(state, user, err.into()))
+        Err(err) => return Err(TemplateResponse::from_error(err.into()))
     };
 
-    if let Err(err) = check_access(&user, &raw.metadata.edit_access, &state) {
+    if let Err(err) = check_access(&user, &raw.metadata.edit_access) {
         return Err(err);
     }
 
@@ -116,7 +116,7 @@ async fn post_handler(
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(TemplateResponse::from_error(state, user, ErrorMessage::from(err)))
+            Err(TemplateResponse::from_error(ErrorMessage::from(err)))
         },
     }
 }
@@ -142,13 +142,13 @@ async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
 ) -> Result<TemplateResponse, TemplateResponse> {
-    if let Err(err) = check_access(&user, &state.config.create_access, &state) {
+    if let Err(err) = check_access(&user, &state.config.create_access) {
         return Err(err);
     }
 
     let template = "article_create.tera";
     let raw = RawArticle::default();
-    Ok(render_article(state, user, raw, template))
+    Ok(render_article(raw, template))
 }
 
 #[debug_handler]
@@ -159,11 +159,11 @@ async fn create_post_handler(
 ) -> Result<Redirect, TemplateResponse> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(TemplateResponse::from_error(state, user, ErrorMessage::bad_request())),
+        None => return Err(TemplateResponse::from_error(ErrorMessage::bad_request())),
         Some(paths) => paths
     };
 
-    if let Err(err) = check_access(&user, &state.config.create_access, &state) {
+    if let Err(err) = check_access(&user, &state.config.create_access) {
         return Err(err);
     }
 
@@ -180,11 +180,11 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(TemplateResponse::from_error(state, user, ErrorMessage::from(err)))
+        Err(err) => Err(TemplateResponse::from_error(ErrorMessage::from(err)))
     }
 }
 
-fn render_article(state: AppState, user: User, raw: RawArticle, template: &'static str) -> TemplateResponse {
+fn render_article(raw: RawArticle, template: &'static str) -> TemplateResponse {
     let mut context = context(&raw.metadata.title);
     context.insert("view_access", raw.metadata.view_access.variant_string());
     context.insert("edit_access", raw.metadata.edit_access.variant_string());
@@ -195,7 +195,7 @@ fn render_article(state: AppState, user: User, raw: RawArticle, template: &'stat
     pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
     context.insert("rendered_cmark", &rendered_cmark);
 
-    TemplateResponse::from_template(state, user, template, context)
+    TemplateResponse::from_template(template, context)
 }
 
 fn get_paths(config: &Config, path: &str) -> Option<ArticlePaths> {
