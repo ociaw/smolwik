@@ -90,7 +90,7 @@ async fn main() {
         .merge(auth_routes)
         .merge(admin_routes)
         .merge(discovery_routes)
-        .layer(from_fn_with_state(state.clone(), template_middleware))
+        .layer(from_fn_with_state(state, template_middleware))
         .layer(TraceLayer::new_for_http());
 
     // run it

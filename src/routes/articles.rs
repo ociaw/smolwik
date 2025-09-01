@@ -67,9 +67,7 @@ async fn get_handler(
         None => &raw.metadata.view_access,
     };
 
-    if let Err(err) = check_access(&user, &required) {
-        return Err(err);
-    }
+    check_access(&user, &required)?;
 
     let template = match &query.edit {
         Some(_) => "article_edit.tera",
@@ -97,9 +95,7 @@ async fn post_handler(
         Err(err) => return Err(TemplateResponse::from_error(err.into()))
     };
 
-    if let Err(err) = check_access(&user, &raw.metadata.edit_access) {
-        return Err(err);
-    }
+    check_access(&user, &raw.metadata.edit_access)?;
 
     let metadata = Metadata {
         title: form.title.clone(),
@@ -142,9 +138,7 @@ async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
 ) -> Result<TemplateResponse, TemplateResponse> {
-    if let Err(err) = check_access(&user, &state.config.create_access) {
-        return Err(err);
-    }
+    check_access(&user, &state.config.create_access)?;
 
     let template = "article_create.tera";
     let raw = RawArticle::default();
@@ -163,9 +157,7 @@ async fn create_post_handler(
         Some(paths) => paths
     };
 
-    if let Err(err) = check_access(&user, &state.config.create_access) {
-        return Err(err);
-    }
+    check_access(&user, &state.config.create_access)?;
 
     let metadata = Metadata {
         title: form.title.clone(),
