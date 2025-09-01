@@ -9,6 +9,16 @@ pub struct TemplateResponse {
     pub error: Option<ErrorMessage>,
 }
 
+impl TemplateResponse {
+    pub fn from_template(template: &'static str, context: Context) -> TemplateResponse {
+        TemplateResponse {
+            template,
+            context,
+            error: None,
+        }
+    }
+}
+
 impl IntoResponse for TemplateResponse {
     fn into_response(self) -> Response {
         let mut response = Response::new(Body::empty());
@@ -22,20 +32,12 @@ impl IntoResponse for TemplateResponse {
     }
 }
 
-impl TemplateResponse {
-    pub fn from_error(error: ErrorMessage) -> TemplateResponse {
+impl From<ErrorMessage> for TemplateResponse {
+    fn from(value: ErrorMessage) -> Self {
         TemplateResponse {
             template: "error",
             context: Context::new(),
-            error: Some(error),
-        }
-    }
-
-    pub fn from_template(template: &'static str, context: Context) -> TemplateResponse {
-        TemplateResponse {
-            template,
-            context,
-            error: None,
+            error: Some(value),
         }
     }
 }

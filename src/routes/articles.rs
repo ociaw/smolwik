@@ -53,13 +53,13 @@ async fn get_handler(
     user: User,
 ) -> Result<TemplateResponse, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(TemplateResponse::from_error(ErrorMessage::path_not_found(&path))),
+        None => return Err(ErrorMessage::path_not_found(&path).into()),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(TemplateResponse::from_error(err.into()))
+        Err(err) => return Err(ErrorMessage::from(err).into())
     };
 
     let required = match &query.edit {
@@ -86,13 +86,13 @@ async fn post_handler(
     form: Form<EditForm>
 ) -> Result<Redirect, TemplateResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(TemplateResponse::from_error(ErrorMessage::path_not_found(&path))),
+        None => return Err(ErrorMessage::path_not_found(&path).into()),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(TemplateResponse::from_error(err.into()))
+        Err(err) => return Err(ErrorMessage::from(err).into())
     };
 
     check_access(&user, &raw.metadata.edit_access)?;
@@ -112,7 +112,7 @@ async fn post_handler(
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(TemplateResponse::from_error(ErrorMessage::from(err)))
+            Err(ErrorMessage::from(err).into())
         },
     }
 }
@@ -153,7 +153,7 @@ async fn create_post_handler(
 ) -> Result<Redirect, TemplateResponse> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(TemplateResponse::from_error(ErrorMessage::bad_request())),
+        None => return Err(ErrorMessage::bad_request().into()),
         Some(paths) => paths
     };
 
@@ -172,7 +172,7 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(TemplateResponse::from_error(ErrorMessage::from(err)))
+        Err(err) => Err(ErrorMessage::from(err).into())
     }
 }
 

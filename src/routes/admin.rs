@@ -57,7 +57,7 @@ async fn admin_get_handler() -> Result<TemplateResponse, TemplateResponse> {
 async fn account_get_handler(query: extract::Query<EditAccountQuery>) -> Result<TemplateResponse, TemplateResponse> {
     let account_config = load_account_config().await.map_err(|err| err)?;
     let account = match account_config.find_by_username(&query.username) {
-        None => return Err(TemplateResponse::from_error(ErrorMessage::account_not_found(&query.username))),
+        None => return Err(ErrorMessage::account_not_found(&query.username).into()),
         Some(acc) => acc
     };
 
@@ -80,9 +80,9 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
 
     match account_config.find_by_username_mut(&form.username) {
         None => account_config.accounts.push(Account::new(form.username.clone(), &form.password)),
-        Some(acc) => return Err(TemplateResponse::from_error(
-            ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username))
-        )),
+        Some(acc) => return Err(
+            ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username)).into()
+        ),
     };
 
     save_account_config(&account_config).await
@@ -93,14 +93,14 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
 async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<Redirect, TemplateResponse> {
     let mut account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(TemplateResponse::from_error(err.into())),
+        Err(err) => return Err(ErrorMessage::from(err).into()),
     };
 
     match &form.username {
         Some(username) =>
             match account_config.find_by_username_mut(username) {
                 Some(acc) => acc.set_password(&form.password),
-                None => return Err(TemplateResponse::from_error(ErrorMessage::account_not_found(username))),
+                None => return Err(ErrorMessage::account_not_found(username).into()),
             },
         None => account_config.single_password = Some(hash_password(&form.password)),
     }
@@ -112,13 +112,13 @@ async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<
 async fn load_account_config() -> Result<AccountConfig, TemplateResponse> {
     match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => Ok(config),
-        Err(err) => Err(TemplateResponse::from_error(err.into())),
+        Err(err) => Err(ErrorMessage::from(err).into()),
     }
 }
 
 async fn save_account_config(config: &AccountConfig) -> Result<(), TemplateResponse> {
     match config.write_to_file("accounts.toml").await {
         Ok(()) => Ok(()),
-        Err(err) => Err(TemplateResponse::from_error(err.into())),
+        Err(err) => Err(ErrorMessage::from(err).into()),
     }
 }

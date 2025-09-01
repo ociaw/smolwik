@@ -150,8 +150,8 @@ fn check_access(user: &User, access: &Access) -> Result<(), TemplateResponse> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(TemplateResponse::from_error(ErrorMessage::forbidden())),
-        Authorization::AuthenticationRequired => Err(TemplateResponse::from_error(ErrorMessage::unauthenticated())),
+        Authorization::Unauthorized => Err(ErrorMessage::forbidden().into()),
+        Authorization::AuthenticationRequired => Err(ErrorMessage::unauthenticated().into()),
         _ => Ok(())
     }
 }

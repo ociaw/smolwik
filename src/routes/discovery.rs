@@ -54,7 +54,7 @@ async fn tree_handler(State(state): State<AppState>, user: User) -> Result<Templ
 
     let mut root = DirectoryNode::new(&state.config.articles, "/", "");
     if let Err(err) = recurse_directory(&state.config.articles, &mut root).await {
-        return Err(TemplateResponse::from_error(err.into()));
+        return Err(ErrorMessage::from(err).into());
     }
 
     let mut context = context("Article Index");

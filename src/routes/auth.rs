@@ -24,7 +24,7 @@ pub struct LoginForm {
 async fn get_handler(State(_): State<AppState>, user: User) -> TemplateResponse {
     match &user {
         User::Anonymous => TemplateResponse::from_template("login.tera", context("Login")),
-        _ => TemplateResponse::from_error(ErrorMessage::already_authenticated()),
+        _ => ErrorMessage::already_authenticated().into(),
     }
 }
 
@@ -36,14 +36,14 @@ async fn post_handler(
 ) -> Result<(SignedCookieJar, Redirect), TemplateResponse> {
     let user = User::from(&jar);
     if user != User::Anonymous {
-        return Err(TemplateResponse::from_error(ErrorMessage::already_authenticated()))
+        return Err(ErrorMessage::already_authenticated().into())
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
-        return Err(TemplateResponse::from_error(ErrorMessage::bad_request()))
+        return Err(ErrorMessage::bad_request().into())
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(TemplateResponse::from_error(err.into())),
+        Err(err) => return Err(ErrorMessage::from(err).into()),
     };
 
     let user: Option<User> = match state.config.auth_mode {
@@ -67,7 +67,7 @@ async fn post_handler(
     };
 
     let user = match user {
-        None => return Err(TemplateResponse::from_error(ErrorMessage::invalid_credentials())),
+        None => return Err(ErrorMessage::invalid_credentials().into()),
         Some(u) => u,
     };
 
