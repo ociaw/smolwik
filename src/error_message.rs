@@ -2,6 +2,8 @@ use std::error::Error;
 use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
 use axum::http::StatusCode;
+use axum_core::body::Body;
+use axum_core::response::{IntoResponse, Response};
 use crate::config::ConfigReadError;
 use crate::filesystem::FileWriteError;
 use crate::routes::discovery::DiscoveryTreeError;
@@ -109,6 +111,16 @@ impl ErrorMessage {
             title: "An internal error occurred.".to_owned(),
             details: details.into(),
         }
+    }
+}
+
+impl IntoResponse for ErrorMessage {
+    fn into_response(self) -> Response {
+        let mut response = Response::new(Body::empty());
+        *response.status_mut() = self.status_code;
+        let extensions = response.extensions_mut();
+        extensions.insert(self);
+        response
     }
 }
 

@@ -43,7 +43,7 @@ async fn authorize_middleware(State(state): State<AppState>, user: User, request
 }
 
 #[debug_handler]
-async fn admin_get_handler() -> Result<TemplateResponse, TemplateResponse> {
+async fn admin_get_handler() -> Result<TemplateResponse, ErrorMessage> {
     let account_config = load_account_config().await.map_err(|err| err)?;
     let accounts = account_config.accounts.iter().map(|acc| &acc.username).collect::<Vec<_>>();
 
@@ -54,10 +54,10 @@ async fn admin_get_handler() -> Result<TemplateResponse, TemplateResponse> {
 }
 
 #[debug_handler]
-async fn account_get_handler(query: extract::Query<EditAccountQuery>) -> Result<TemplateResponse, TemplateResponse> {
+async fn account_get_handler(query: extract::Query<EditAccountQuery>) -> Result<TemplateResponse, ErrorMessage> {
     let account_config = load_account_config().await.map_err(|err| err)?;
     let account = match account_config.find_by_username(&query.username) {
-        None => return Err(ErrorMessage::account_not_found(&query.username).into()),
+        None => return Err(ErrorMessage::account_not_found(&query.username)),
         Some(acc) => acc
     };
 
@@ -67,12 +67,12 @@ async fn account_get_handler(query: extract::Query<EditAccountQuery>) -> Result<
 }
 
 #[debug_handler]
-async fn add_account_get_handler() -> Result<TemplateResponse, TemplateResponse> {
-    Ok(TemplateResponse::from_template("admin.add_account.tera", context("Add Account")))
+async fn add_account_get_handler() -> TemplateResponse {
+    TemplateResponse::from_template("admin.add_account.tera", context("Add Account"))
 }
 
 #[debug_handler]
-async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect, TemplateResponse> {
+async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect, ErrorMessage> {
     let mut account_config = match load_account_config().await {
         Ok(config) => config,
         Err(err) => return Err(err),
@@ -81,7 +81,7 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
     match account_config.find_by_username_mut(&form.username) {
         None => account_config.accounts.push(Account::new(form.username.clone(), &form.password)),
         Some(acc) => return Err(
-            ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username)).into()
+            ErrorMessage::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username))
         ),
     };
 
@@ -90,17 +90,17 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
 }
 
 #[debug_handler]
-async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<Redirect, TemplateResponse> {
+async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<Redirect, ErrorMessage> {
     let mut account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(ErrorMessage::from(err).into()),
+        Err(err) => return Err(ErrorMessage::from(err)),
     };
 
     match &form.username {
         Some(username) =>
             match account_config.find_by_username_mut(username) {
                 Some(acc) => acc.set_password(&form.password),
-                None => return Err(ErrorMessage::account_not_found(username).into()),
+                None => return Err(ErrorMessage::account_not_found(username)),
             },
         None => account_config.single_password = Some(hash_password(&form.password)),
     }
@@ -109,16 +109,16 @@ async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<
         .map_or_else(|err| Err(err), |_| Ok(Redirect::to("/")))
 }
 
-async fn load_account_config() -> Result<AccountConfig, TemplateResponse> {
+async fn load_account_config() -> Result<AccountConfig, ErrorMessage> {
     match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => Ok(config),
-        Err(err) => Err(ErrorMessage::from(err).into()),
+        Err(err) => Err(ErrorMessage::from(err)),
     }
 }
 
-async fn save_account_config(config: &AccountConfig) -> Result<(), TemplateResponse> {
+async fn save_account_config(config: &AccountConfig) -> Result<(), ErrorMessage> {
     match config.write_to_file("accounts.toml").await {
         Ok(()) => Ok(()),
-        Err(err) => Err(ErrorMessage::from(err).into()),
+        Err(err) => Err(ErrorMessage::from(err)),
     }
 }

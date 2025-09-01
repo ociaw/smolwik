@@ -49,12 +49,12 @@ impl DirectoryNode {
 }
 
 #[debug_handler]
-async fn tree_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, TemplateResponse> {
+async fn tree_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, ErrorMessage> {
     check_access(&user, &state.config.discovery_access)?;
 
     let mut root = DirectoryNode::new(&state.config.articles, "/", "");
     if let Err(err) = recurse_directory(&state.config.articles, &mut root).await {
-        return Err(ErrorMessage::from(err).into());
+        return Err(ErrorMessage::from(err));
     }
 
     let mut context = context("Article Index");

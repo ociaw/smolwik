@@ -109,14 +109,15 @@ async fn template_middleware(State(state): State<AppState>, user: User, request:
         return response
     }
 
-    // Build a new response from the extension data.
-    let context = extensions.remove::<Context>();
-    let error = extensions.remove::<ErrorMessage>();
-    let template = extensions.remove::<&'static str>().expect("String (Template) must be set.");
-    let title = extensions.remove::<String>().unwrap_or(String::new());
-    if let Some(error) = error {
+    // Render errors that occurred in handler.
+    if let Some(error) = extensions.remove::<ErrorMessage>() {
         return render_error(&state, &user, error);
     }
+
+    // Build a new response from the extension data.
+    let context = extensions.remove::<Context>();
+    let template = extensions.remove::<&'static str>().expect("String (Template) must be set.");
+    let title = extensions.remove::<String>().unwrap_or(String::new());
 
     if let Some(context) = context {
         return match state.renderer.render_template_with_context(&user, &template, &title, context) {
@@ -146,12 +147,12 @@ fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response 
 
 /// Checks if the specified user has the specified access. Returns an error response with an error
 /// message if the access check fails.
-fn check_access(user: &User, access: &Access) -> Result<(), TemplateResponse> {
+fn check_access(user: &User, access: &Access) -> Result<(), ErrorMessage> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(ErrorMessage::forbidden().into()),
-        Authorization::AuthenticationRequired => Err(ErrorMessage::unauthenticated().into()),
+        Authorization::Unauthorized => Err(ErrorMessage::forbidden()),
+        Authorization::AuthenticationRequired => Err(ErrorMessage::unauthenticated()),
         _ => Ok(())
     }
 }

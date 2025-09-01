@@ -51,15 +51,15 @@ async fn get_handler(
     extract::Path(path): extract::Path<String>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<TemplateResponse, TemplateResponse> {
+) -> Result<TemplateResponse, ErrorMessage> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(ErrorMessage::path_not_found(&path).into()),
+        None => return Err(ErrorMessage::path_not_found(&path)),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorMessage::from(err).into())
+        Err(err) => return Err(ErrorMessage::from(err))
     };
 
     let required = match &query.edit {
@@ -84,15 +84,15 @@ async fn post_handler(
     extract::Path(path): extract::Path<String>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, TemplateResponse> {
+) -> Result<Redirect, ErrorMessage> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(ErrorMessage::path_not_found(&path).into()),
+        None => return Err(ErrorMessage::path_not_found(&path)),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorMessage::from(err).into())
+        Err(err) => return Err(ErrorMessage::from(err))
     };
 
     check_access(&user, &raw.metadata.edit_access)?;
@@ -112,7 +112,7 @@ async fn post_handler(
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
             let err = ErrorMessage::from(err);
-            Err(ErrorMessage::from(err).into())
+            Err(ErrorMessage::from(err))
         },
     }
 }
@@ -121,7 +121,7 @@ async fn root_get_handler(
     State(state): State<AppState>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<TemplateResponse, TemplateResponse> {
+) -> Result<TemplateResponse, ErrorMessage> {
     get_handler(State(state), extract::Path(String::new()), query, user).await
 }
 
@@ -129,7 +129,7 @@ async fn root_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, TemplateResponse> {
+) -> Result<Redirect, ErrorMessage> {
     post_handler(State(state), extract::Path(String::new()), user, form).await
 }
 
@@ -137,7 +137,7 @@ async fn root_post_handler(
 async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
-) -> Result<TemplateResponse, TemplateResponse> {
+) -> Result<TemplateResponse, ErrorMessage> {
     check_access(&user, &state.config.create_access)?;
 
     let template = "article_create.tera";
@@ -150,10 +150,10 @@ async fn create_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<CreateForm>,
-) -> Result<Redirect, TemplateResponse> {
+) -> Result<Redirect, ErrorMessage> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(ErrorMessage::bad_request().into()),
+        None => return Err(ErrorMessage::bad_request()),
         Some(paths) => paths
     };
 
@@ -172,7 +172,7 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(ErrorMessage::from(err).into())
+        Err(err) => Err(ErrorMessage::from(err))
     }
 }
 

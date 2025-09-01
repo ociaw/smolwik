@@ -21,10 +21,10 @@ pub struct LoginForm {
 }
 
 #[debug_handler]
-async fn get_handler(State(_): State<AppState>, user: User) -> TemplateResponse {
+async fn get_handler(State(_): State<AppState>, user: User) -> Result<TemplateResponse, ErrorMessage> {
     match &user {
-        User::Anonymous => TemplateResponse::from_template("login.tera", context("Login")),
-        _ => ErrorMessage::already_authenticated().into(),
+        User::Anonymous => Ok(TemplateResponse::from_template("login.tera", context("Login"))),
+        _ => Err(ErrorMessage::already_authenticated()),
     }
 }
 
@@ -33,17 +33,17 @@ async fn post_handler(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     form: Form<LoginForm>
-) -> Result<(SignedCookieJar, Redirect), TemplateResponse> {
+) -> Result<(SignedCookieJar, Redirect), ErrorMessage> {
     let user = User::from(&jar);
     if user != User::Anonymous {
-        return Err(ErrorMessage::already_authenticated().into())
+        return Err(ErrorMessage::already_authenticated())
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
-        return Err(ErrorMessage::bad_request().into())
+        return Err(ErrorMessage::bad_request())
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(ErrorMessage::from(err).into()),
+        Err(err) => return Err(ErrorMessage::from(err)),
     };
 
     let user: Option<User> = match state.config.auth_mode {
