@@ -5,7 +5,7 @@ use axum::routing::post;
 use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::SignedCookieJar;
 use crate::extractors::Form;
-use crate::template::TemplateResponse;
+use crate::responses::TemplatedResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -21,10 +21,10 @@ pub struct LoginForm {
 }
 
 #[debug_handler]
-async fn get_handler(State(_): State<AppState>, user: User) -> Result<TemplateResponse, ErrorMessage> {
+async fn get_handler(State(_): State<AppState>, user: User) -> Result<TemplatedResponse, ErrorResponse> {
     match &user {
-        User::Anonymous => Ok(TemplateResponse::from_template("login.tera", context("Login"))),
-        _ => Err(ErrorMessage::already_authenticated()),
+        User::Anonymous => Ok(TemplatedResponse::new("login.tera", context("Login"))),
+        _ => Err(ErrorResponse::already_authenticated()),
     }
 }
 
@@ -33,17 +33,17 @@ async fn post_handler(
     State(state): State<AppState>,
     jar: SignedCookieJar,
     form: Form<LoginForm>
-) -> Result<(SignedCookieJar, Redirect), ErrorMessage> {
+) -> Result<(SignedCookieJar, Redirect), ErrorResponse> {
     let user = User::from(&jar);
     if user != User::Anonymous {
-        return Err(ErrorMessage::already_authenticated())
+        return Err(ErrorResponse::already_authenticated())
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
-        return Err(ErrorMessage::bad_request())
+        return Err(ErrorResponse::bad_request())
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
-        Err(err) => return Err(ErrorMessage::from(err)),
+        Err(err) => return Err(ErrorResponse::from(err)),
     };
 
     let user: Option<User> = match state.config.auth_mode {
@@ -67,7 +67,7 @@ async fn post_handler(
     };
 
     let user = match user {
-        None => return Err(ErrorMessage::invalid_credentials().into()),
+        None => return Err(ErrorResponse::invalid_credentials().into()),
         Some(u) => u,
     };
 

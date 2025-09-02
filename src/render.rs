@@ -34,7 +34,7 @@ impl Renderer {
 
     /// Renders the error template with the provided title and error details. If the error template
     /// cannot be rendered, renders the fallback template.
-    pub fn render_error(&self, user: &User, error: &ErrorMessage) -> String {
+    pub fn render_error(&self, user: &User, error: &ErrorResponse) -> String {
         let mut context = self.build_context(user, &error.title);
         context.insert("details", &error.details);
         self.tera.render("error", &context).unwrap_or_else(Renderer::render_error_fallback)

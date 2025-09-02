@@ -4,7 +4,7 @@ use crate::auth::*;
 use axum::extract::State;
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
-use crate::template::TemplateResponse;
+use crate::responses::TemplatedResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -49,17 +49,17 @@ impl DirectoryNode {
 }
 
 #[debug_handler]
-async fn tree_handler(State(state): State<AppState>, user: User) -> Result<TemplateResponse, ErrorMessage> {
+async fn tree_handler(State(state): State<AppState>, user: User) -> Result<TemplatedResponse, ErrorResponse> {
     check_access(&user, &state.config.discovery_access)?;
 
     let mut root = DirectoryNode::new(&state.config.articles, "/", "");
     if let Err(err) = recurse_directory(&state.config.articles, &mut root).await {
-        return Err(ErrorMessage::from(err));
+        return Err(ErrorResponse::from(err));
     }
 
     let mut context = context("Article Index");
     context.insert("discovery__tree_root", &root);
-    Ok(TemplateResponse::from_template("discovery.tree.tera", context))
+    Ok(TemplatedResponse::new("discovery.tree.tera", context))
 }
 
 async fn recurse_directory(article_root: &Path, mut parent: &mut DirectoryNode) -> Result<(), DiscoveryTreeError> {

@@ -7,7 +7,7 @@ use crate::auth::*;
 use crate::article::RawArticle;
 use crate::*;
 use crate::extractors::Form;
-use crate::template::TemplateResponse;
+use crate::responses::TemplatedResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -51,15 +51,15 @@ async fn get_handler(
     extract::Path(path): extract::Path<String>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<TemplateResponse, ErrorMessage> {
+) -> Result<TemplatedResponse, ErrorResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(ErrorMessage::path_not_found(&path)),
+        None => return Err(ErrorResponse::path_not_found(&path)),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorMessage::from(err))
+        Err(err) => return Err(ErrorResponse::from(err))
     };
 
     let required = match &query.edit {
@@ -84,15 +84,15 @@ async fn post_handler(
     extract::Path(path): extract::Path<String>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, ErrorMessage> {
+) -> Result<Redirect, ErrorResponse> {
     let pathset = match get_paths(&state.config, &path) {
-        None => return Err(ErrorMessage::path_not_found(&path)),
+        None => return Err(ErrorResponse::path_not_found(&path)),
         Some(paths) => paths
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorMessage::from(err))
+        Err(err) => return Err(ErrorResponse::from(err))
     };
 
     check_access(&user, &raw.metadata.edit_access)?;
@@ -111,8 +111,8 @@ async fn post_handler(
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
         Err(err) => {
-            let err = ErrorMessage::from(err);
-            Err(ErrorMessage::from(err))
+            let err = ErrorResponse::from(err);
+            Err(ErrorResponse::from(err))
         },
     }
 }
@@ -121,7 +121,7 @@ async fn root_get_handler(
     State(state): State<AppState>,
     query: extract::Query<ArticleQuery>,
     user: User,
-) -> Result<TemplateResponse, ErrorMessage> {
+) -> Result<TemplatedResponse, ErrorResponse> {
     get_handler(State(state), extract::Path(String::new()), query, user).await
 }
 
@@ -129,7 +129,7 @@ async fn root_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<EditForm>
-) -> Result<Redirect, ErrorMessage> {
+) -> Result<Redirect, ErrorResponse> {
     post_handler(State(state), extract::Path(String::new()), user, form).await
 }
 
@@ -137,7 +137,7 @@ async fn root_post_handler(
 async fn create_get_handler(
     State(state): State<AppState>,
     user: User,
-) -> Result<TemplateResponse, ErrorMessage> {
+) -> Result<TemplatedResponse, ErrorResponse> {
     check_access(&user, &state.config.create_access)?;
 
     let template = "article_create.tera";
@@ -150,10 +150,10 @@ async fn create_post_handler(
     State(state): State<AppState>,
     user: User,
     form: Form<CreateForm>,
-) -> Result<Redirect, ErrorMessage> {
+) -> Result<Redirect, ErrorResponse> {
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
-        None => return Err(ErrorMessage::bad_request()),
+        None => return Err(ErrorResponse::bad_request()),
         Some(paths) => paths
     };
 
@@ -172,11 +172,11 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(ErrorMessage::from(err))
+        Err(err) => Err(ErrorResponse::from(err))
     }
 }
 
-fn render_article(raw: RawArticle, template: &'static str) -> TemplateResponse {
+fn render_article(raw: RawArticle, template: &'static str) -> TemplatedResponse {
     let mut context = context(&raw.metadata.title);
     context.insert("view_access", raw.metadata.view_access.variant_string());
     context.insert("edit_access", raw.metadata.edit_access.variant_string());
@@ -187,7 +187,7 @@ fn render_article(raw: RawArticle, template: &'static str) -> TemplateResponse {
     pulldown_cmark::html::push_html(&mut rendered_cmark, parser);
     context.insert("rendered_cmark", &rendered_cmark);
 
-    TemplateResponse::from_template(template, context)
+    TemplatedResponse::new(template, context)
 }
 
 fn get_paths(config: &Config, path: &str) -> Option<ArticlePaths> {

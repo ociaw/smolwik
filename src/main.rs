@@ -4,12 +4,11 @@ mod render;
 mod article;
 mod metadata;
 mod auth;
-mod error_message;
+mod responses;
 mod config;
 mod routes;
 mod extractors;
 mod filesystem;
-mod template;
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -24,12 +23,12 @@ use tower_http::{services::ServeDir, trace::TraceLayer};
 use serde::Deserialize;
 use tera::Context;
 use crate::config::*;
-pub use crate::error_message::ErrorMessage;
+pub use crate::responses::ErrorResponse;
 pub use crate::metadata::Metadata;
 use crate::article::RawArticle;
 use crate::auth::{Access, User};
 use crate::render::Renderer;
-use crate::template::TemplateResponse;
+use crate::responses::TemplatedResponse;
 
 #[derive(Clone)]
 struct AppState {
@@ -110,7 +109,7 @@ async fn template_middleware(State(state): State<AppState>, user: User, request:
     }
 
     // Render errors that occurred in handler.
-    if let Some(error) = extensions.remove::<ErrorMessage>() {
+    if let Some(error) = extensions.remove::<ErrorResponse>() {
         return render_error(&state, &user, error);
     }
 
@@ -139,7 +138,7 @@ pub(crate) fn context(title: &str) -> Context {
     context
 }
 
-fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response {
+fn render_error(state: &AppState, user: &User, error: ErrorResponse) -> Response {
     let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
     *response.status_mut() = error.status_code;
     response
@@ -147,12 +146,12 @@ fn render_error(state: &AppState, user: &User, error: ErrorMessage) -> Response 
 
 /// Checks if the specified user has the specified access. Returns an error response with an error
 /// message if the access check fails.
-fn check_access(user: &User, access: &Access) -> Result<(), ErrorMessage> {
+fn check_access(user: &User, access: &Access) -> Result<(), ErrorResponse> {
     use crate::auth::Authorization;
 
     match user.check_authorization(access) {
-        Authorization::Unauthorized => Err(ErrorMessage::forbidden()),
-        Authorization::AuthenticationRequired => Err(ErrorMessage::unauthenticated()),
+        Authorization::Unauthorized => Err(ErrorResponse::forbidden()),
+        Authorization::AuthenticationRequired => Err(ErrorResponse::unauthenticated()),
         _ => Ok(())
     }
 }
