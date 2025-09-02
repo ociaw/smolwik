@@ -5,6 +5,7 @@
       <w>cmark</w>
       <w>csprng</w>
       <w>pathset</w>
+      <w>rustfmt</w>
       <w>smolwik</w>
       <w>unhandlable</w>
     </words>

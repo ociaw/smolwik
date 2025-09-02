@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::auth::Access;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Metadata {

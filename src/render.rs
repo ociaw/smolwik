@@ -1,6 +1,6 @@
-use tera::{Context, Tera};
-use crate::*;
 use crate::auth::{Authorization, User};
+use crate::*;
+use tera::{Context, Tera};
 
 #[derive(Clone)]
 pub struct Renderer {
@@ -14,11 +14,13 @@ impl Renderer {
         // Default error template used when an error occurs. Only add if an error template hasn't
         // been found in the directory.
         if !tera.get_template_names().any(|t| t.eq("error")) {
-            tera.add_raw_template("error", include_str!("../templates/error.tera")).unwrap();
+            tera.add_raw_template("error", include_str!("../templates/error.tera"))
+                .unwrap();
         }
         // This template is added last to ensure that it is always available. If the error template
         // fails to render, this template will be used instead.
-        tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.tera")).unwrap();
+        tera.add_raw_template("error_fallback", include_str!("../templates/error_fallback.tera"))
+            .unwrap();
         Ok(Renderer { config, tera })
     }
 
@@ -26,7 +28,13 @@ impl Renderer {
         self.tera.render(template, &self.build_context(user, title))
     }
 
-    pub fn render_template_with_context(&self, user: &User, template: &str, title: &str, context: Context) -> Result<String, tera::Error> {
+    pub fn render_template_with_context(
+        &self,
+        user: &User,
+        template: &str,
+        title: &str,
+        context: Context,
+    ) -> Result<String, tera::Error> {
         let mut ctx = self.build_context(user, title);
         ctx.extend(context);
         self.tera.render(template, &ctx)
@@ -37,13 +45,16 @@ impl Renderer {
     pub fn render_error(&self, user: &User, error: &ErrorResponse) -> String {
         let mut context = self.build_context(user, &error.title);
         context.insert("details", &error.details);
-        self.tera.render("error", &context).unwrap_or_else(Renderer::render_error_fallback)
+        self.tera
+            .render("error", &context)
+            .unwrap_or_else(Renderer::render_error_fallback)
     }
 
     fn render_error_fallback(err: tera::Error) -> String {
         let mut context = Context::new();
         context.insert("template_error", &err.to_string());
-        Tera::default().render_str(include_str!("../templates/error_fallback.tera"), &context)
+        Tera::default()
+            .render_str(include_str!("../templates/error_fallback.tera"), &context)
             .expect("Failed to render error fallback template")
     }
 
@@ -59,9 +70,15 @@ impl Renderer {
                 true
             }
         };
-        context.insert("can_create", &(user.check_authorization(&self.config.create_access) == Authorization::Authorized));
+        context.insert(
+            "can_create",
+            &(user.check_authorization(&self.config.create_access) == Authorization::Authorized),
+        );
         context.insert("is_authenticated", &authenticated);
-        context.insert("is_administrator", &(user.check_authorization(&self.config.administrator_access) == Authorization::Authorized));
+        context.insert(
+            "is_administrator",
+            &(user.check_authorization(&self.config.administrator_access) == Authorization::Authorized),
+        );
         context
     }
 }

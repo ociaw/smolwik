@@ -1,17 +1,20 @@
-use axum::{debug_handler, extract, routing::get, Router};
+use crate::auth::*;
+use crate::extractors::Form;
+use crate::*;
 use axum::extract::State;
 use axum::response::Redirect;
 use axum::routing::post;
+use axum::{Router, debug_handler, extract, routing::get};
 use serde::Deserialize;
-use crate::auth::*;
-use crate::*;
-use crate::extractors::Form;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/special:admin", get(admin_get_handler))
         .route("/special:admin:account", get(account_get_handler))
-        .route("/special:admin:add_account", get(add_account_get_handler).post(add_account_post_handler))
+        .route(
+            "/special:admin:add_account",
+            get(add_account_get_handler).post(add_account_post_handler),
+        )
         .route("/special:admin:change_password", post(change_password_post_handler))
         .with_state(state.clone())
         .layer(from_fn_with_state(state, authorize_middleware))
@@ -58,7 +61,7 @@ async fn account_get_handler(query: extract::Query<EditAccountQuery>) -> Result<
     let account_config = load_account_config().await.map_err(|err| err)?;
     let account = match account_config.find_by_username(&query.username) {
         None => return Err(ErrorResponse::account_not_found(&query.username)),
-        Some(acc) => acc
+        Some(acc) => acc,
     };
 
     let mut context = context("Editing Account");
@@ -79,13 +82,19 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
     };
 
     match account_config.find_by_username_mut(&form.username) {
-        None => account_config.accounts.push(Account::new(form.username.clone(), &form.password)),
-        Some(acc) => return Err(
-            ErrorResponse::conflict("Account Already Exists", format!("An account with the username `{}` already exists.", acc.username))
-        ),
+        None => account_config
+            .accounts
+            .push(Account::new(form.username.clone(), &form.password)),
+        Some(acc) => {
+            return Err(ErrorResponse::conflict(
+                "Account Already Exists",
+                format!("An account with the username `{}` already exists.", acc.username),
+            ));
+        }
     };
 
-    save_account_config(&account_config).await
+    save_account_config(&account_config)
+        .await
         .map_or_else(|err| Err(err), |_| Ok(Redirect::to("/")))
 }
 
@@ -97,15 +106,15 @@ async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<
     };
 
     match &form.username {
-        Some(username) =>
-            match account_config.find_by_username_mut(username) {
-                Some(acc) => acc.set_password(&form.password),
-                None => return Err(ErrorResponse::account_not_found(username)),
-            },
+        Some(username) => match account_config.find_by_username_mut(username) {
+            Some(acc) => acc.set_password(&form.password),
+            None => return Err(ErrorResponse::account_not_found(username)),
+        },
         None => account_config.single_password = Some(hash_password(&form.password)),
     }
 
-    save_account_config(&account_config).await
+    save_account_config(&account_config)
+        .await
         .map_or_else(|err| Err(err), |_| Ok(Redirect::to("/")))
 }
 

@@ -1,13 +1,13 @@
-use axum::{debug_handler, routing::get, Router};
+use crate::article::RawArticle;
+use crate::auth::*;
+use crate::extractors::Form;
+use crate::responses::TemplatedResponse;
+use crate::*;
 use axum::extract;
 use axum::extract::State;
 use axum::response::Redirect;
+use axum::{Router, debug_handler, routing::get};
 use serde::Deserialize;
-use crate::auth::*;
-use crate::article::RawArticle;
-use crate::*;
-use crate::extractors::Form;
-use crate::responses::TemplatedResponse;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -54,12 +54,12 @@ async fn get_handler(
 ) -> Result<TemplatedResponse, ErrorResponse> {
     let pathset = match get_paths(&state.config, &path) {
         None => return Err(ErrorResponse::path_not_found(&path)),
-        Some(paths) => paths
+        Some(paths) => paths,
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorResponse::from(err))
+        Err(err) => return Err(ErrorResponse::from(err)),
     };
 
     let required = match &query.edit {
@@ -83,16 +83,16 @@ async fn post_handler(
     State(state): State<AppState>,
     extract::Path(path): extract::Path<String>,
     user: User,
-    form: Form<EditForm>
+    form: Form<EditForm>,
 ) -> Result<Redirect, ErrorResponse> {
     let pathset = match get_paths(&state.config, &path) {
         None => return Err(ErrorResponse::path_not_found(&path)),
-        Some(paths) => paths
+        Some(paths) => paths,
     };
 
     let raw = match RawArticle::read_from_path(&pathset.md, &pathset.url).await {
         Ok(raw) => raw,
-        Err(err) => return Err(ErrorResponse::from(err))
+        Err(err) => return Err(ErrorResponse::from(err)),
     };
 
     check_access(&user, &raw.metadata.edit_access)?;
@@ -113,7 +113,7 @@ async fn post_handler(
         Err(err) => {
             let err = ErrorResponse::from(err);
             Err(ErrorResponse::from(err))
-        },
+        }
     }
 }
 
@@ -128,16 +128,13 @@ async fn root_get_handler(
 async fn root_post_handler(
     State(state): State<AppState>,
     user: User,
-    form: Form<EditForm>
+    form: Form<EditForm>,
 ) -> Result<Redirect, ErrorResponse> {
     post_handler(State(state), extract::Path(String::new()), user, form).await
 }
 
 #[debug_handler]
-async fn create_get_handler(
-    State(state): State<AppState>,
-    user: User,
-) -> Result<TemplatedResponse, ErrorResponse> {
+async fn create_get_handler(State(state): State<AppState>, user: User) -> Result<TemplatedResponse, ErrorResponse> {
     check_access(&user, &state.config.create_access)?;
 
     let template = "article_create.tera";
@@ -154,7 +151,7 @@ async fn create_post_handler(
     let path = &form.path;
     let pathset = match get_paths(&state.config, path) {
         None => return Err(ErrorResponse::bad_request()),
-        Some(paths) => paths
+        Some(paths) => paths,
     };
 
     check_access(&user, &state.config.create_access)?;
@@ -172,7 +169,7 @@ async fn create_post_handler(
 
     match raw_article.write_to_path(&pathset.md, &pathset.url).await {
         Ok(_) => Ok(Redirect::to(&pathset.url)),
-        Err(err) => Err(ErrorResponse::from(err))
+        Err(err) => Err(ErrorResponse::from(err)),
     }
 }
 
@@ -225,10 +222,7 @@ fn validate_path(path: &str) -> Option<PathBuf> {
         match component {
             Component::Normal(comp) => {
                 // protect against paths like `/foo/c:/bar/baz`
-                if Path::new(&comp)
-                    .components()
-                    .any(|c| !matches!(c, Component::Normal(_)))
-                {
+                if Path::new(&comp).components().any(|c| !matches!(c, Component::Normal(_))) {
                     return None;
                 }
             }

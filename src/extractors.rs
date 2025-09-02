@@ -1,10 +1,10 @@
 use crate::auth::User;
 use crate::{AppState, ErrorResponse};
 use axum_core::extract::{FromRef, FromRequest, FromRequestParts};
-use axum_extra::extract::cookie::Key;
 use axum_extra::extract::SignedCookieJar;
-use http::request::Parts;
+use axum_extra::extract::cookie::Key;
 use http::Request;
+use http::request::Parts;
 use serde::de::DeserializeOwned;
 use std::convert::Infallible;
 use std::ops::Deref;
@@ -22,7 +22,7 @@ where
 
         Ok(match jar.get("user") {
             None => User::Anonymous,
-            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous)
+            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous),
         })
     }
 }
@@ -46,7 +46,8 @@ where
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Form<T>, Self::Rejection> {
         let (parts, body) = req.into_parts();
-        axum::extract::Form::from_request(Request::from_parts(parts, body), state).await
+        axum::extract::Form::from_request(Request::from_parts(parts, body), state)
+            .await
             .map(|f| Form(f.0))
             .map_err(|rej| ErrorResponse::from(rej))
     }

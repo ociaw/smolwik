@@ -1,7 +1,7 @@
-use std::fmt::{Display, Formatter};
-use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::SignedCookieJar;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
 pub struct Username(String);
@@ -21,21 +21,26 @@ pub struct Account {
 impl Account {
     pub fn new(username: Username, password: &str) -> Account {
         use argon2::{
-            password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-            Argon2
+            Argon2,
+            password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
         };
 
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
-        let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
+        let hash = argon2
+            .hash_password(password.as_bytes(), &salt)
+            .expect("Password hashing should be infallible.");
 
-        Account { username, password: hash.to_string() }
+        Account {
+            username,
+            password: hash.to_string(),
+        }
     }
 
-    pub fn verify_password(&self, password: &str) -> Result<(),()> {
+    pub fn verify_password(&self, password: &str) -> Result<(), ()> {
         use argon2::{
+            Argon2,
             password_hash::{PasswordHash, PasswordVerifier},
-            Argon2
         };
 
         let password_hash = PasswordHash::new(&self.password).map_err(|_| ())?;
@@ -48,10 +53,10 @@ impl Account {
     }
 }
 
-pub fn verify_password(password: &str, existing_hash: &str) -> Result<(),()> {
+pub fn verify_password(password: &str, existing_hash: &str) -> Result<(), ()> {
     use argon2::{
+        Argon2,
         password_hash::{PasswordHash, PasswordVerifier},
-        Argon2
     };
 
     let existing_hash = PasswordHash::new(existing_hash).map_err(|_| ())?;
@@ -61,13 +66,15 @@ pub fn verify_password(password: &str, existing_hash: &str) -> Result<(),()> {
 
 pub fn hash_password(password: &str) -> String {
     use argon2::{
-        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-        Argon2
+        Argon2,
+        password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
     };
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let hash = argon2.hash_password(password.as_bytes(), &salt).expect("Password hashing should be infallible.");
+    let hash = argon2
+        .hash_password(password.as_bytes(), &salt)
+        .expect("Password hashing should be infallible.");
 
     hash.to_string()
 }
@@ -80,7 +87,7 @@ pub enum AuthenticationMode {
     Single,
     /// Multi-user authentication, with multiple accounts identified by a username, each with a
     /// unique password.
-    Multi
+    Multi,
 }
 
 impl AuthenticationMode {
@@ -114,8 +121,13 @@ impl User {
             // Authenticated means that any authenticated user has access.
             (User::Account(_), Access::Authenticated) => Authorized,
             // The authenticated user must have a user name that matches one of the specified names.
-            (User::Account(user), Access::Accounts(allowed)) =>
-                if allowed.contains(user) { Authorized } else { Unauthorized },
+            (User::Account(user), Access::Accounts(allowed)) => {
+                if allowed.contains(user) {
+                    Authorized
+                } else {
+                    Unauthorized
+                }
+            }
             (User::Anonymous, _) => AuthenticationRequired,
         }
     }
@@ -141,7 +153,7 @@ impl From<&SignedCookieJar> for User {
     fn from(value: &SignedCookieJar) -> Self {
         match value.get("user") {
             None => User::Anonymous,
-            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous)
+            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous),
         }
     }
 }
@@ -150,9 +162,7 @@ impl From<User> for Cookie<'_> {
     fn from(value: User) -> Self {
         let value = serde_json::to_string(&value).expect("User must be serializable.");
 
-        Cookie::build(("user", value))
-            .same_site(SameSite::Strict)
-            .build()
+        Cookie::build(("user", value)).same_site(SameSite::Strict).build()
     }
 }
 

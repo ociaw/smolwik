@@ -1,13 +1,13 @@
-use std::error::Error;
-use axum::extract::rejection::FormRejection;
 use crate::article::{ArticleReadError, ArticleWriteError};
-use axum::http::StatusCode;
-use axum_core::body::Body;
-use axum_core::response::{IntoResponse, Response};
-use tera::Context;
 use crate::config::ConfigReadError;
 use crate::filesystem::FileWriteError;
 use crate::routes::discovery::DiscoveryTreeError;
+use axum::extract::rejection::FormRejection;
+use axum::http::StatusCode;
+use axum_core::body::Body;
+use axum_core::response::{IntoResponse, Response};
+use std::error::Error;
+use tera::Context;
 
 pub struct TemplatedResponse {
     pub template: &'static str,
@@ -16,10 +16,7 @@ pub struct TemplatedResponse {
 
 impl TemplatedResponse {
     pub fn new(template: &'static str, context: Context) -> TemplatedResponse {
-        TemplatedResponse {
-            template,
-            context,
-        }
+        TemplatedResponse { template, context }
     }
 }
 
@@ -33,7 +30,6 @@ impl IntoResponse for TemplatedResponse {
     }
 }
 
-
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ErrorResponse {
     pub status_code: StatusCode,
@@ -46,7 +42,7 @@ impl ErrorResponse {
         ErrorResponse {
             status_code: StatusCode::BAD_REQUEST,
             title: "Bad request".to_owned(),
-            details: "Invalid data in request.".to_owned()
+            details: "Invalid data in request.".to_owned(),
         }
     }
 
@@ -62,7 +58,7 @@ impl ErrorResponse {
         ErrorResponse {
             status_code: StatusCode::UNAUTHORIZED,
             title: "Authentication required".to_owned(),
-            details: "Authentication is required to view this page, please log in.".to_owned()
+            details: "Authentication is required to view this page, please log in.".to_owned(),
         }
     }
 
@@ -70,10 +66,10 @@ impl ErrorResponse {
         ErrorResponse {
             status_code: StatusCode::UNAUTHORIZED,
             title: "Invalid credentials".to_owned(),
-            details: "Invalid username or password provided.".to_owned()
+            details: "Invalid username or password provided.".to_owned(),
         }
     }
-    
+
     pub fn already_authenticated() -> Self {
         ErrorResponse {
             status_code: StatusCode::BAD_REQUEST,
@@ -86,7 +82,7 @@ impl ErrorResponse {
         ErrorResponse {
             status_code: StatusCode::FORBIDDEN,
             title: "Access forbidden".to_owned(),
-            details: "Access to this page is forbidden.".to_owned()
+            details: "Access to this page is forbidden.".to_owned(),
         }
     }
 
@@ -131,7 +127,9 @@ impl ErrorResponse {
     }
 
     pub fn internal_error<S>(details: S) -> Self
-        where S : Into<String> {
+    where
+        S: Into<String>,
+    {
         ErrorResponse {
             status_code: StatusCode::INTERNAL_SERVER_ERROR,
             title: "An internal error occurred.".to_owned(),
@@ -153,12 +151,16 @@ impl IntoResponse for ErrorResponse {
 impl From<ArticleWriteError> for ErrorResponse {
     fn from(value: ArticleWriteError) -> Self {
         match value {
-            ArticleWriteError::InvalidPath { source: _, path } => Self::bad_request_with_details(format!("Not a valid path: <code>{path}</code>")),
+            ArticleWriteError::InvalidPath { source: _, path } => {
+                Self::bad_request_with_details(format!("Not a valid path: <code>{path}</code>"))
+            }
             ArticleWriteError::ConflictingWriteInProgress { path } => Self::conflict(
                 "Conflicting article update in progress",
-                format!("A conflicting update was made to the article at <code>{path}</code> while saving this. Saving will clobber those changes.")
+                format!(
+                    "A conflicting update was made to the article at <code>{path}</code> while saving this. Saving will clobber those changes."
+                ),
             ),
-            ArticleWriteError::UnhandlableWriteError { source: _, path: _ } => Self::internal_error(value.to_string())
+            ArticleWriteError::UnhandlableWriteError { source: _, path: _ } => Self::internal_error(value.to_string()),
         }
     }
 }
@@ -197,12 +199,16 @@ impl From<FileWriteError> for ErrorResponse {
     fn from(value: FileWriteError) -> Self {
         match value {
             FileWriteError::ConflictingWriteInProgress { filepath, tmp_path: _ } => {
-                let filename = filepath.file_name().expect("File name should always be valid here.").to_string_lossy();
+                let filename = filepath
+                    .file_name()
+                    .expect("File name should always be valid here.")
+                    .to_string_lossy();
                 ErrorResponse::conflict(
                     "Conflicting file update in progress",
-                    format!("A conflicting update was made to {filename} while saving this. Please try again.")
-            )},
-            FileWriteError::UnhandlableWriteError { source, filepath: _ } => Self::internal_error(source.to_string())
+                    format!("A conflicting update was made to {filename} while saving this. Please try again."),
+                )
+            }
+            FileWriteError::UnhandlableWriteError { source, filepath: _ } => Self::internal_error(source.to_string()),
         }
     }
 }
@@ -212,10 +218,11 @@ impl From<tera::Error> for ErrorResponse {
         let message = value.to_string();
         // Try to improve the error message by getting the underlying cause. Tera wraps the useful
         // error message with an unhelpful error.
-        if let Some(source) = value.source() && message.starts_with("Failed to render ") {
+        if let Some(source) = value.source()
+            && message.starts_with("Failed to render ")
+        {
             Self::internal_error(source.to_string())
-        }
-        else {
+        } else {
             Self::internal_error(message)
         }
     }

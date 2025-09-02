@@ -1,27 +1,23 @@
-use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
-use snafu::{ResultExt, Snafu};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use crate::auth::{Access, Account, AuthenticationMode, Username};
 use crate::filesystem;
 use crate::filesystem::{FileWriteError, UnhandlableWriteSnafu, WritableFile};
+use serde::{Deserialize, Serialize};
+use snafu::{ResultExt, Snafu};
+use std::path::{Path, PathBuf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Snafu, Debug)]
 pub enum ConfigReadError {
     #[snafu(display("Failed to read the configuration file: {}", source))]
-    Io {
-        source: tokio::io::Error,
-    },
+    Io { source: tokio::io::Error },
     #[snafu(display("Failed to deserialize the configuration file: {}", source))]
-    Serde {
-        source: toml::de::Error,
-    },
+    Serde { source: toml::de::Error },
 }
 
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub address: String,
-    #[serde(with="base64serde")]
+    #[serde(with = "base64serde")]
     pub secret_key: Vec<u8>,
     pub auth_mode: AuthenticationMode,
     pub create_access: Access,
@@ -45,7 +41,9 @@ impl Config {
     }
 
     pub async fn from_file<P>(path: P) -> Result<Config, ConfigReadError>
-    where P : AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let mut file = filesystem::ReadableFile::open(path.as_ref()).await.context(IoSnafu)?;
         let mut str = String::new();
         file.reader.read_to_string(&mut str).await.context(IoSnafu)?;
@@ -65,7 +63,7 @@ impl AccountConfig {
         use argon2::PasswordHash;
         match &self.single_password {
             None => false,
-            Some(hash) => PasswordHash::new(hash).is_ok()
+            Some(hash) => PasswordHash::new(hash).is_ok(),
         }
     }
 
@@ -91,7 +89,9 @@ impl AccountConfig {
     }
 
     pub async fn from_file<P>(path: P) -> Result<AccountConfig, ConfigReadError>
-    where P : AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let mut file = filesystem::ReadableFile::open(path.as_ref()).await.context(IoSnafu)?;
         let mut str = String::new();
         file.reader.read_to_string(&mut str).await.context(IoSnafu)?;
@@ -99,19 +99,24 @@ impl AccountConfig {
     }
 
     pub async fn write_to_file<P>(&self, path: P) -> Result<(), FileWriteError>
-    where P : AsRef<Path> {
+    where
+        P: AsRef<Path>,
+    {
         let filepath = path.as_ref();
         let mut file = WritableFile::open(filepath).await?;
         let toml = toml::to_string_pretty(&self).expect("TOML Serialization should always succeed.");
-        (&mut file.writer).write_all(toml.as_bytes()).await.with_context(|_| UnhandlableWriteSnafu { filepath })?;
+        (&mut file.writer)
+            .write_all(toml.as_bytes())
+            .await
+            .with_context(|_| UnhandlableWriteSnafu { filepath })?;
         file.close().await?;
         Ok(())
     }
 }
 
 mod base64serde {
-    use serde::{Deserialize, Deserializer};
     use base64::Engine;
+    use serde::{Deserialize, Deserializer};
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
         use base64::prelude::BASE64_STANDARD;

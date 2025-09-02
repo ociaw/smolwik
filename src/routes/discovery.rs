@@ -1,15 +1,13 @@
-use crate::*;
 use crate::article::ArticleReadError;
 use crate::auth::*;
+use crate::responses::TemplatedResponse;
+use crate::*;
 use axum::extract::State;
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
-use crate::responses::TemplatedResponse;
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
-        .route("/special:tree", get(tree_handler))
-        .with_state(state)
+    Router::new().route("/special:tree", get(tree_handler)).with_state(state)
 }
 
 #[derive(Serialize)]
@@ -75,19 +73,27 @@ async fn populate_directory(article_root: &Path, dir: &mut DirectoryNode) -> Res
     for entry in std::fs::read_dir(&dir.file_path).context(DirectoryOpenSnafu)? {
         let filepath = entry.context(EntryOpenSnafu)?.path();
         let path = filepath
-            .strip_prefix(article_root).expect("All paths should be descendents of the article root.")
-            .to_str().expect("All paths are expected to be valid UTF-8 strings.").to_owned();
-        if let Some(stem) = filepath.file_stem() && let Some(stem) = stem.to_str() {
+            .strip_prefix(article_root)
+            .expect("All paths should be validated as descendents of the article root.")
+            .to_str()
+            .expect("All paths should be validated as UTF-8 strings.")
+            .to_owned();
+        if let Some(stem) = filepath.file_stem()
+            && let Some(stem) = stem.to_str()
+        {
             let stem = stem.to_owned();
             if filepath.is_dir() {
                 dir.directories.push(DirectoryNode::new(filepath, path, stem))
-            } else if filepath.is_file()  {
+            } else if filepath.is_file() {
                 let article = RawArticle::read_from_path(&filepath, &path).await.context(ArticleReadSnafu)?;
                 if stem == "index" {
                     dir.has_index = true;
                     dir.name = article.metadata.title.clone();
                 } else {
-                    dir.files.push(FileNode { url_path: path, name: article.metadata.title.clone() })
+                    dir.files.push(FileNode {
+                        url_path: path,
+                        name: article.metadata.title.clone(),
+                    })
                 }
             }
         }

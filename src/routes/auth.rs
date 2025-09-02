@@ -1,11 +1,11 @@
-use crate::*;
 use crate::auth::*;
-use axum::extract::State;
-use axum::routing::post;
-use axum_extra::extract::cookie::Cookie;
-use axum_extra::extract::SignedCookieJar;
 use crate::extractors::Form;
 use crate::responses::TemplatedResponse;
+use crate::*;
+use axum::extract::State;
+use axum::routing::post;
+use axum_extra::extract::SignedCookieJar;
+use axum_extra::extract::cookie::Cookie;
 
 pub fn router(state: AppState) -> Router {
     Router::new()
@@ -32,14 +32,14 @@ async fn get_handler(State(_): State<AppState>, user: User) -> Result<TemplatedR
 async fn post_handler(
     State(state): State<AppState>,
     jar: SignedCookieJar,
-    form: Form<LoginForm>
+    form: Form<LoginForm>,
 ) -> Result<(SignedCookieJar, Redirect), ErrorResponse> {
     let user = User::from(&jar);
     if user != User::Anonymous {
-        return Err(ErrorResponse::already_authenticated())
+        return Err(ErrorResponse::already_authenticated());
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
-        return Err(ErrorResponse::bad_request())
+        return Err(ErrorResponse::bad_request());
     }
     let account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
@@ -48,22 +48,21 @@ async fn post_handler(
 
     let user: Option<User> = match state.config.auth_mode {
         AuthenticationMode::Anonymous => unreachable!(),
-        AuthenticationMode::Single => account_config.single_password
+        AuthenticationMode::Single => account_config
+            .single_password
             .map_or(false, |hash| verify_password(&form.password, &hash).is_ok())
             .then(|| User::SingleUser),
-        AuthenticationMode::Multi => {
-            match &form.username {
-                None => None,
-                Some(username) => {
-                    if let Some(acc) = account_config.accounts.iter().find(|acc| &acc.username == username) {
-                        acc.verify_password(&form.password).map_or(None, |_| Some(User::Account(acc.username.clone())))
-                    }
-                    else {
-                        None
-                    }
+        AuthenticationMode::Multi => match &form.username {
+            None => None,
+            Some(username) => {
+                if let Some(acc) = account_config.accounts.iter().find(|acc| &acc.username == username) {
+                    acc.verify_password(&form.password)
+                        .map_or(None, |_| Some(User::Account(acc.username.clone())))
+                } else {
+                    None
                 }
             }
-        }
+        },
     };
 
     let user = match user {
@@ -84,4 +83,3 @@ async fn logout_handler(State(_state): State<AppState>, mut jar: SignedCookieJar
 
     (jar, Redirect::to("/"))
 }
-

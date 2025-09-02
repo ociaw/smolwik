@@ -1,34 +1,34 @@
 #![feature(path_add_extension)]
 
-mod render;
 mod article;
-mod metadata;
 mod auth;
-mod responses;
 mod config;
-mod routes;
 mod extractors;
 mod filesystem;
+mod metadata;
+mod render;
+mod responses;
+mod routes;
 
-use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
-use axum::{debug_handler, routing::get, Router};
+use crate::article::RawArticle;
+use crate::auth::{Access, User};
+use crate::config::*;
+pub use crate::metadata::Metadata;
+use crate::render::Renderer;
+pub use crate::responses::ErrorResponse;
+use crate::responses::TemplatedResponse;
 use axum::extract::State;
-use axum::middleware::{from_fn_with_state, Next};
+use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{Html, Redirect};
+use axum::{Router, debug_handler, routing::get};
 use axum_core::body::Body;
 use axum_core::response::{IntoResponse, Response};
 use http::Request;
-use tower_http::{services::ServeDir, trace::TraceLayer};
 use serde::Deserialize;
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 use tera::Context;
-use crate::config::*;
-pub use crate::responses::ErrorResponse;
-pub use crate::metadata::Metadata;
-use crate::article::RawArticle;
-use crate::auth::{Access, User};
-use crate::render::Renderer;
-use crate::responses::TemplatedResponse;
+use tower_http::{services::ServeDir, trace::TraceLayer};
 
 #[derive(Clone)]
 struct AppState {
@@ -42,14 +42,16 @@ async fn main() {
         Ok(c) => c,
         Err(err) => {
             eprintln!("Couldn't open `config.toml`: {}", err.to_string());
-            return
+            return;
         }
     };
 
     // Ensure we have a valid secret key define.
     if config.secret_key.len() < 64 {
         let key_string = config.generate_secret_key();
-        eprintln!("WARN: Empty or weak secret_key found in configuration. Using temp value; to make permanent, update config.toml with {key_string}");
+        eprintln!(
+            "WARN: Empty or weak secret_key found in configuration. Using temp value; to make permanent, update config.toml with {key_string}"
+        );
     }
     let config = Arc::new(config);
 
@@ -57,7 +59,7 @@ async fn main() {
         Ok(c) => c,
         Err(err) => {
             eprintln!("Couldn't open `accounts.toml`: {}", err.to_string());
-            return
+            return;
         }
     };
     if !account_config.validate_single_user_password() && config.auth_mode == auth::AuthenticationMode::Single {
@@ -71,7 +73,7 @@ async fn main() {
 
     let state = AppState {
         renderer: Renderer::new((*config).clone()).unwrap().into(),
-        config: config.clone()
+        config: config.clone(),
     };
 
     let article_routes = routes::articles::router(state.clone());
@@ -93,9 +95,7 @@ async fn main() {
         .layer(TraceLayer::new_for_http());
 
     // run it
-    let listener = tokio::net::TcpListener::bind(&config.address)
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&config.address).await.unwrap();
     println!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, router).await.unwrap();
 }
@@ -105,7 +105,7 @@ async fn template_middleware(State(state): State<AppState>, user: User, request:
     let extensions = response.extensions_mut();
     if extensions.len() == 0 {
         // For routes that don't use extensions, just return the original response
-        return response
+        return response;
     }
 
     // Render errors that occurred in handler.
@@ -152,6 +152,6 @@ fn check_access(user: &User, access: &Access) -> Result<(), ErrorResponse> {
     match user.check_authorization(access) {
         Authorization::Unauthorized => Err(ErrorResponse::forbidden()),
         Authorization::AuthenticationRequired => Err(ErrorResponse::unauthenticated()),
-        _ => Ok(())
+        _ => Ok(()),
     }
 }
