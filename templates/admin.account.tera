@@ -6,6 +6,7 @@
 <h1>Account Edit</h1>
 <h2>Editing <code>{{ admin__username }}</code></h2>
 <form method=POST action=/special:admin:change_password>
+    <input name=session_id type=hidden value="{{ session_id }}" />
     <fieldset>
         <div>
             <label for=password>Password</label>
@@ -13,7 +14,7 @@
         </div>
     </fieldset>
     <input name=username id=username type=hidden value="{{ admin__username }}" />
-    <button>Add</button>
+    <button>Update</button>
 </form>
 {% endif %}
 {% endblock %}

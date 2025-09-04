@@ -2,6 +2,7 @@
 {% block content %}
     <h1>Create a New Article</h1>
     <form method=POST>
+        <input name=session_id type=hidden value="{{ session_id }}" />
         <fieldset>
             <div>
                 <label for=title>Article Title</label>

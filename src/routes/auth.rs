@@ -16,14 +16,40 @@ pub fn router(state: AppState) -> Router {
 
 #[derive(Deserialize)]
 pub struct LoginForm {
+    /// The username to login under. [None] if authenticating in Single-User mode.
     pub username: Option<Username>,
+    /// The password associated with the account.
     pub password: String,
+    /// The ID of the current session, used to prevent CSRF attacks. Must match the ID set in the session cookie.
+    pub session_id: String,
+}
+
+impl AntiCsrfForm for LoginForm {
+    fn session(&self) -> &str {
+        &self.session_id
+    }
 }
 
 #[debug_handler]
-async fn get_handler(State(_): State<AppState>, user: User) -> Result<TemplatedResponse, ErrorResponse> {
-    match &user {
-        User::Anonymous => Ok(TemplatedResponse::new("login.tera", context("Login"))),
+async fn get_handler(
+    State(_): State<AppState>,
+    session: Session,
+    jar: SignedCookieJar,
+) -> Result<(SignedCookieJar, TemplatedResponse), ErrorResponse> {
+    match (&session.user, &session.id) {
+        (User::Anonymous, None) => {
+            let mut context = context("Login");
+            let session = Session::new(User::Anonymous);
+            context.insert("session_id", &session.id);
+            let cookie = Cookie::from(session);
+            let jar = jar.add(cookie);
+            Ok((jar, TemplatedResponse::new("login.tera", context)))
+        }
+        (User::Anonymous, Some(_)) => {
+            let mut context = context("Login");
+            context.insert("session_id", &session.id);
+            Ok((jar, TemplatedResponse::new("login.tera", context)))
+        }
         _ => Err(ErrorResponse::already_authenticated()),
     }
 }
@@ -34,8 +60,8 @@ async fn post_handler(
     jar: SignedCookieJar,
     form: Form<LoginForm>,
 ) -> Result<(SignedCookieJar, Redirect), ErrorResponse> {
-    let user = User::from(&jar);
-    if user != User::Anonymous {
+    let session = Session::from(&jar);
+    if session.user != User::Anonymous {
         return Err(ErrorResponse::already_authenticated());
     }
     if state.config.auth_mode == AuthenticationMode::Anonymous {
@@ -70,7 +96,8 @@ async fn post_handler(
         Some(u) => u,
     };
 
-    let cookie = Cookie::from(user);
+    let session = Session::new(user);
+    let cookie = Cookie::from(session);
     let jar = jar.add(cookie);
     Ok((jar, Redirect::to("/")))
 }

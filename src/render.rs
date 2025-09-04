@@ -24,26 +24,26 @@ impl Renderer {
         Ok(Renderer { config, tera })
     }
 
-    pub fn render_template(&self, user: &User, template: &str, title: &str) -> Result<String, tera::Error> {
-        self.tera.render(template, &self.build_context(user, title))
+    pub fn render_template(&self, session: &Session, template: &str, title: &str) -> Result<String, tera::Error> {
+        self.tera.render(template, &self.build_context(session, title))
     }
 
     pub fn render_template_with_context(
         &self,
-        user: &User,
+        session: &Session,
         template: &str,
         title: &str,
         context: Context,
     ) -> Result<String, tera::Error> {
-        let mut ctx = self.build_context(user, title);
+        let mut ctx = self.build_context(session, title);
         ctx.extend(context);
         self.tera.render(template, &ctx)
     }
 
     /// Renders the error template with the provided title and error details. If the error template
     /// cannot be rendered, renders the fallback template.
-    pub fn render_error(&self, user: &User, error: &ErrorResponse) -> String {
-        let mut context = self.build_context(user, &error.title);
+    pub fn render_error(&self, session: &Session, error: &ErrorResponse) -> String {
+        let mut context = self.build_context(session, &error.title);
         context.insert("details", &error.details);
         self.tera
             .render("error", &context)
@@ -58,10 +58,12 @@ impl Renderer {
             .expect("Failed to render error fallback template")
     }
 
-    fn build_context(&self, user: &User, title: &str) -> Context {
+    fn build_context(&self, session: &Session, title: &str) -> Context {
+        let user = &session.user;
         let mut context = context(title);
         context.insert("title", title);
         context.insert("auth_mode", self.config.auth_mode.variant_string());
+        context.insert("session_id", &session.id);
         let authenticated = match user {
             User::Anonymous => false,
             User::SingleUser => true,

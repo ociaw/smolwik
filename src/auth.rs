@@ -143,26 +143,53 @@ impl Display for User {
     }
 }
 
-impl From<SignedCookieJar> for User {
+/// Identifies a user's session.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Session {
+    /// The ID of this session. None if a session has not been started yet.
+    pub id: Option<String>,
+    /// The current user.
+    pub user: User,
+}
+
+impl Session {
+    pub fn new(user: User) -> Session {
+        Session {
+            id: Some(generate_random_token()),
+            user,
+        }
+    }
+}
+
+impl Default for Session {
+    fn default() -> Self {
+        Self {
+            user: User::Anonymous,
+            id: None,
+        }
+    }
+}
+
+impl From<Session> for Cookie<'_> {
+    fn from(value: Session) -> Self {
+        let value = serde_json::to_string(&value).expect("User must be serializable.");
+
+        Cookie::build(("session", value)).same_site(SameSite::Strict).build()
+    }
+}
+
+impl From<SignedCookieJar> for Session {
     fn from(value: SignedCookieJar) -> Self {
         Self::from(&value)
     }
 }
 
-impl From<&SignedCookieJar> for User {
+impl From<&SignedCookieJar> for Session {
     fn from(value: &SignedCookieJar) -> Self {
-        match value.get("user") {
-            None => User::Anonymous,
-            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous),
+        match value.get("session") {
+            None => Self::default(),
+            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(Self::default()),
         }
-    }
-}
-
-impl From<User> for Cookie<'_> {
-    fn from(value: User) -> Self {
-        let value = serde_json::to_string(&value).expect("User must be serializable.");
-
-        Cookie::build(("user", value)).same_site(SameSite::Strict).build()
     }
 }
 
@@ -195,4 +222,12 @@ pub enum Authorization {
     Unauthorized,
     /// The User is not authenticated, but page requires authentication.
     AuthenticationRequired,
+}
+
+fn generate_random_token() -> String {
+    use base64::prelude::*;
+    use rand_core::RngCore;
+    let mut bytes = vec![0u8; 64];
+    rand_core::OsRng::default().fill_bytes(&mut bytes);
+    BASE64_STANDARD.encode(&bytes)
 }

@@ -17,6 +17,7 @@
         {% endif %}
         {% if is_authenticated %}
             <form method=POST action=/special:logout>
+                <input name=session_id type=hidden value="{{ session_id }}" />
                 <button id=logout>Log out{% if username %} ({{ username }}){% endif %}</button>
             </form>
         {% else %}

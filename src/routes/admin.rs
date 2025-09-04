@@ -27,21 +27,46 @@ struct EditAccountQuery {
 
 #[derive(Deserialize)]
 struct AddAccountForm {
+    /// The username of the new account.
     pub username: Username,
+    /// The password of the new account.
     pub password: String,
+    /// The ID of the current session, used to prevent CSRF attacks. Must match the ID set in the session cookie.
+    pub session_id: String,
+}
+
+impl AntiCsrfForm for AddAccountForm {
+    fn session(&self) -> &str {
+        &self.session_id
+    }
 }
 
 #[derive(Deserialize)]
 struct ChangePasswordForm {
+    /// The username of the account to change the password of. [None] for Single-User mode.
     pub username: Option<Username>,
+    /// The new password.
     pub password: String,
+    /// The ID of the current session, used to prevent CSRF attacks. Must match the ID set in the session cookie.
+    pub session_id: String,
 }
 
-async fn authorize_middleware(State(state): State<AppState>, user: User, request: Request<Body>, next: Next) -> Response {
-    match user.check_authorization(&state.config.administrator_access) {
+impl AntiCsrfForm for ChangePasswordForm {
+    fn session(&self) -> &str {
+        &self.session_id
+    }
+}
+
+async fn authorize_middleware(
+    State(state): State<AppState>,
+    session: Session,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    match session.user.check_authorization(&state.config.administrator_access) {
         Authorization::Authorized => next.run(request).await,
-        Authorization::Unauthorized => render_error(&state, &user, ErrorResponse::forbidden()),
-        Authorization::AuthenticationRequired => render_error(&state, &user, ErrorResponse::unauthenticated()),
+        Authorization::Unauthorized => render_error(&state, &session, ErrorResponse::forbidden()),
+        Authorization::AuthenticationRequired => render_error(&state, &session, ErrorResponse::unauthenticated()),
     }
 }
 
@@ -75,7 +100,16 @@ async fn add_account_get_handler() -> TemplatedResponse {
 }
 
 #[debug_handler]
-async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect, ErrorResponse> {
+async fn add_account_post_handler(
+    State(_): State<AppState>,
+    session: Session,
+    form: Form<AddAccountForm>,
+) -> Result<Redirect, ErrorResponse> {
+    // Validate the session ID to prevent CSRF attacks.
+    if !form.is_valid(session.id.as_deref()) {
+        return Err(ErrorResponse::bad_request());
+    }
+
     let mut account_config = match load_account_config().await {
         Ok(config) => config,
         Err(err) => return Err(err),
@@ -99,7 +133,10 @@ async fn add_account_post_handler(form: Form<AddAccountForm>) -> Result<Redirect
 }
 
 #[debug_handler]
-async fn change_password_post_handler(form: Form<ChangePasswordForm>) -> Result<Redirect, ErrorResponse> {
+async fn change_password_post_handler(
+    State(_): State<AppState>,
+    form: Form<ChangePasswordForm>,
+) -> Result<Redirect, ErrorResponse> {
     let mut account_config = match AccountConfig::from_file("accounts.toml").await {
         Ok(config) => config,
         Err(err) => return Err(ErrorResponse::from(err)),

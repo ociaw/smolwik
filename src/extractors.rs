@@ -1,5 +1,5 @@
-use crate::auth::User;
-use crate::{AppState, ErrorResponse};
+use crate::auth::{Session, User};
+use crate::{AntiCsrfForm, AppState, ErrorResponse};
 use axum_core::extract::{FromRef, FromRequest, FromRequestParts};
 use axum_extra::extract::SignedCookieJar;
 use axum_extra::extract::cookie::Key;
@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use std::convert::Infallible;
 use std::ops::Deref;
 
-impl<S> FromRequestParts<S> for User
+impl<S> FromRequestParts<S> for Session
 where
     AppState: FromRef<S>,
     S: Send + Sync,
@@ -20,10 +20,24 @@ where
         let state = AppState::from_ref(state);
         let jar: SignedCookieJar<Key> = SignedCookieJar::from_request_parts(parts, &state).await.unwrap();
 
-        Ok(match jar.get("user") {
-            None => User::Anonymous,
-            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(User::Anonymous),
+        Ok(match jar.get("session") {
+            None => Session::default(),
+            Some(cookie) => serde_json::from_str(cookie.value()).unwrap_or(Session::default()),
         })
+    }
+}
+
+impl<S> FromRequestParts<S> for User
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        use axum::RequestPartsExt;
+        let session = parts.extract_with_state::<Session, S>(state).await?;
+        Ok(session.user)
     }
 }
 
@@ -39,17 +53,24 @@ pub struct Form<T>(pub T);
 
 impl<T, S> FromRequest<S> for Form<T>
 where
-    T: DeserializeOwned,
+    AppState: FromRef<S>,
+    T: DeserializeOwned + AntiCsrfForm,
     S: Send + Sync,
 {
     type Rejection = ErrorResponse;
 
     async fn from_request(req: axum::extract::Request, state: &S) -> Result<Form<T>, Self::Rejection> {
-        let (parts, body) = req.into_parts();
-        axum::extract::Form::from_request(Request::from_parts(parts, body), state)
+        use axum::RequestPartsExt;
+        let (mut parts, body) = req.into_parts();
+        let session = parts.extract_with_state::<Session, S>(state).await.unwrap();
+        let form = axum::extract::Form::from_request(Request::from_parts(parts, body), state)
             .await
-            .map(|f| Form(f.0))
-            .map_err(|rej| ErrorResponse::from(rej))
+            .map(|f: axum::Form<T>| Form(f.0))
+            .map_err(|rej| ErrorResponse::from(rej))?;
+        if !form.0.is_valid(session.id.as_deref()) {
+            return Err(ErrorResponse::bad_request());
+        }
+        Ok(form)
     }
 }
 

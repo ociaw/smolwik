@@ -28,6 +28,14 @@ struct EditForm {
     pub view_access: Access,
     pub edit_access: Access,
     pub cmark: String,
+    /// The ID of the current session, used to prevent CSRF attacks. Must match the ID set in the session cookie.
+    pub session_id: String,
+}
+
+impl AntiCsrfForm for EditForm {
+    fn session(&self) -> &str {
+        &self.session_id
+    }
 }
 
 #[derive(Deserialize)]
@@ -37,6 +45,14 @@ struct CreateForm {
     pub view_access: Access,
     pub edit_access: Access,
     pub cmark: String,
+    /// The ID of the current session, used to prevent CSRF attacks. Must match the ID set in the session cookie.
+    pub session_id: String,
+}
+
+impl AntiCsrfForm for CreateForm {
+    fn session(&self) -> &str {
+        &self.session_id
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

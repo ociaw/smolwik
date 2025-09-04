@@ -11,7 +11,7 @@ mod responses;
 mod routes;
 
 use crate::article::RawArticle;
-use crate::auth::{Access, User};
+use crate::auth::{Access, Session, User};
 use crate::config::*;
 pub use crate::metadata::Metadata;
 use crate::render::Renderer;
@@ -100,7 +100,12 @@ async fn main() {
     axum::serve(listener, router).await.unwrap();
 }
 
-async fn template_middleware(State(state): State<AppState>, user: User, request: Request<Body>, next: Next) -> Response {
+async fn template_middleware(
+    State(state): State<AppState>,
+    session: Session,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
     let mut response = next.run(request).await;
     let extensions = response.extensions_mut();
     if extensions.len() == 0 {
@@ -110,7 +115,7 @@ async fn template_middleware(State(state): State<AppState>, user: User, request:
 
     // Render errors that occurred in handler.
     if let Some(error) = extensions.remove::<ErrorResponse>() {
-        return render_error(&state, &user, error);
+        return render_error(&state, &session, error).cookies_from(response);
     }
 
     // Build a new response from the extension data.
@@ -119,15 +124,18 @@ async fn template_middleware(State(state): State<AppState>, user: User, request:
     let title = extensions.remove::<String>().unwrap_or(String::new());
 
     if let Some(context) = context {
-        return match state.renderer.render_template_with_context(&user, &template, &title, context) {
-            Ok(html) => Html(html).into_response(),
-            Err(err) => render_error(&state, &user, err.into()),
+        return match state
+            .renderer
+            .render_template_with_context(&session, &template, &title, context)
+        {
+            Ok(html) => Html(html).into_response().cookies_from(response),
+            Err(err) => render_error(&state, &session, err.into()).cookies_from(response),
         };
     }
 
-    match state.renderer.render_template(&user, &template, &title) {
-        Ok(html) => Html(html).into_response(),
-        Err(err) => render_error(&state, &user, err.into()),
+    match state.renderer.render_template(&session, &template, &title) {
+        Ok(html) => Html(html).into_response().cookies_from(response),
+        Err(err) => render_error(&state, &session, err.into()).cookies_from(response),
     }
 }
 
@@ -138,8 +146,8 @@ pub(crate) fn context(title: &str) -> Context {
     context
 }
 
-fn render_error(state: &AppState, user: &User, error: ErrorResponse) -> Response {
-    let mut response = Html(state.renderer.render_error(&user, &error)).into_response();
+fn render_error(state: &AppState, session: &Session, error: ErrorResponse) -> Response {
+    let mut response = Html(state.renderer.render_error(&session, &error)).into_response();
     *response.status_mut() = error.status_code;
     response
 }
@@ -153,5 +161,32 @@ fn check_access(user: &User, access: &Access) -> Result<(), ErrorResponse> {
         Authorization::Unauthorized => Err(ErrorResponse::forbidden()),
         Authorization::AuthenticationRequired => Err(ErrorResponse::unauthenticated()),
         _ => Ok(()),
+    }
+}
+
+trait ResponseExt: Sized {
+    fn cookies_from(self, other: Response) -> Self;
+}
+
+impl ResponseExt for Response {
+    fn cookies_from(mut self, other: Response) -> Self {
+        let dest_headers = self.headers_mut();
+        for header in other.headers().get_all("Set-Cookie") {
+            dest_headers.insert("Set-Cookie", header.clone());
+        }
+        self
+    }
+}
+
+trait AntiCsrfForm {
+    /// Gets the session id attached to the form.
+    fn session(&self) -> &str;
+
+    /// Validates the form's session ID against the provided session ID from the signed cookie.
+    fn is_valid(&self, session_id: Option<&str>) -> bool {
+        match session_id {
+            None => false,
+            Some(session_id) => self.session() == session_id,
+        }
     }
 }

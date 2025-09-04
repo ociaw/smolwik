@@ -5,6 +5,7 @@
 {% if is_administrator %}
 <h1>Add New Account</h1>
 <form method=POST>
+    <input name=session_id type=hidden value="{{ session_id }}" />
     <fieldset>
         <div>
             <label for=username>Username</label>
