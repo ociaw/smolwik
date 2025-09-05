@@ -12,6 +12,18 @@ impl Display for Username {
     }
 }
 
+impl From<&str> for Username {
+    fn from(value: &str) -> Self {
+        Username(value.into())
+    }
+}
+
+impl From<String> for Username {
+    fn from(value: String) -> Self {
+        Username(value)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Account {
     pub username: Username,
@@ -20,16 +32,7 @@ pub struct Account {
 
 impl Account {
     pub fn new(username: Username, password: &str) -> Account {
-        use argon2::{
-            Argon2,
-            password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
-        };
-
-        let salt = SaltString::generate(&mut OsRng);
-        let argon2 = Argon2::default();
-        let hash = argon2
-            .hash_password(password.as_bytes(), &salt)
-            .expect("Password hashing should be infallible.");
+        let hash = hash_password(password);
 
         Account {
             username,
@@ -38,14 +41,7 @@ impl Account {
     }
 
     pub fn verify_password(&self, password: &str) -> Result<(), ()> {
-        use argon2::{
-            Argon2,
-            password_hash::{PasswordHash, PasswordVerifier},
-        };
-
-        let password_hash = PasswordHash::new(&self.password).map_err(|_| ())?;
-        let argon2 = Argon2::default();
-        argon2.verify_password(password.as_bytes(), &password_hash).map_err(|_| ())
+        verify_password(password, &self.password)
     }
 
     pub fn set_password(&mut self, password: &str) {
@@ -121,11 +117,10 @@ impl User {
             // Authenticated means that any authenticated user has access.
             (User::Account(_), Access::Authenticated) => Authorized,
             // The authenticated user must have a user name that matches one of the specified names.
-            (User::Account(user), Access::Accounts(allowed)) => {
-                if allowed.contains(user) {
-                    Authorized
-                } else {
-                    Unauthorized
+            (User::Account(username), Access::Accounts(allowed)) => {
+                match allowed.contains(username) {
+                    true => Authorized,
+                    false => Unauthorized,
                 }
             }
             (User::Anonymous, _) => AuthenticationRequired,
@@ -230,4 +225,54 @@ fn generate_random_token() -> String {
     let mut bytes = vec![0u8; 64];
     rand_core::OsRng::default().fill_bytes(&mut bytes);
     BASE64_STANDARD.encode(&bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches::assert_matches;
+    use crate::auth::*;
+
+    #[test]
+    fn create_account_verify_password() -> Result<(), ()> {
+        let password = "password";
+        let account = Account::new("username".into(), password);
+        assert_matches!(account.verify_password(password), Ok(()));
+        assert_matches!(account.verify_password("not_password"), Err(()));
+        Ok(())
+    }
+
+    #[test]
+    fn set_password_verify_password() -> Result<(), ()> {
+        let old_password = "old_password";
+        let new_password = "new_password";
+        let mut account = Account::new("username".into(), old_password);
+        account.set_password(new_password);
+        assert_matches!(account.verify_password(new_password), Ok(()));
+        assert_matches!(account.verify_password(old_password), Err(()));
+        Ok(())
+    }
+
+    #[test]
+    fn user_authorization() -> Result<(), ()> {
+        use Authorization::*;
+
+        let user = User::Anonymous;
+        assert_matches!(user.check_authorization(&Access::Anonymous), Authorized);
+        assert_matches!(user.check_authorization(&Access::Authenticated), AuthenticationRequired);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["alex".into()])), AuthenticationRequired);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["morgan".into()])), AuthenticationRequired);
+
+        let user = User::SingleUser;
+        assert_matches!(user.check_authorization(&Access::Anonymous), Authorized);
+        assert_matches!(user.check_authorization(&Access::Authenticated), Authorized);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["alex".into()])), Authorized);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["morgan".into()])), Authorized);
+
+        let user = User::Account("alex".into());
+        assert_matches!(user.check_authorization(&Access::Anonymous), Authorized);
+        assert_matches!(user.check_authorization(&Access::Authenticated), Authorized);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["alex".into()])), Authorized);
+        assert_matches!(user.check_authorization(&Access::Accounts(vec!["morgan".into()])), Unauthorized);
+        Ok(())
+    }
 }
