@@ -5,6 +5,8 @@ database-less - all articles and account details are stored as simple TOML and C
 ensures that information can always be accessed by a simple text editor, and can easily be exported and backed up
 without worry.
 
+<img width="2170" height="1014" alt="smolwik" src="https://github.com/user-attachments/assets/3e384f2d-e1c3-4e0d-b77a-6912e61f8cbd" />
+
 ## Features
 
 `smolwik` has very flexible access control, ranging from fully anonymous, to a single user / password, to any number of
