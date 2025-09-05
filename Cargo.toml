@@ -29,6 +29,9 @@ argon2 = "0.5.3"
 # We use an older version of rand_core to match argon2 and avoid pulling in two different versions
 rand_core = { version = "^0.6.4" }
 
+[dev-dependencies]
+testdir = "0.9.3"
+
 [profile.release]
 lto="fat"
 
