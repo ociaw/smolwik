@@ -1,0 +1,35 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target: [ x86_64-unknown-linux-musl, x86_64-unknown-linux-gnu ]
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install target
+      run: rustup target add ${{ matrix.target }}
+    - name: Download dependencies
+      run: cargo fetch --verbose --locked --target ${{ matrix.target }}
+    - name: Check
+      run: cargo check --verbose --frozen --target ${{ matrix.target }}
+    - name: Build (debug)
+      run: cargo build --verbose --frozen --target ${{ matrix.target }}
+    - name: Build (release)
+      run: cargo build --release --verbose --frozen --target ${{ matrix.target }}
+    - name: Run tests (debug)
+      run: cargo test --verbose --frozen --target ${{ matrix.target }}
+    - name: Run tests (release)
+      run: cargo build --release --verbose --frozen --target ${{ matrix.target }}
