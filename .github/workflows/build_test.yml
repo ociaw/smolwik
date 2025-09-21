@@ -16,13 +16,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Download dependencies
+      run: cargo fetch --verbose --locked
     - name: Check
-      run: cargo check --verbose
+      run: cargo check --verbose --frozen
     - name: Build (debug)
-      run: cargo build --verbose
+      run: cargo build --verbose --frozen
     - name: Build (release)
-      run: cargo build --release --verbose
+      run: cargo build --release --verbose --frozen
     - name: Run tests (debug)
-      run: cargo test --verbose
+      run: cargo test --verbose --frozen
     - name: Run tests (release)
-      run: cargo build --release --verbose
+      run: cargo build --release --verbose --frozen
