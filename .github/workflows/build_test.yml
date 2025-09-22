@@ -20,11 +20,19 @@ jobs:
       run: cargo fetch --verbose --locked
     - name: Check
       run: cargo check --verbose --frozen
-    - name: Build (debug)
+    - name: Build (debug, glibc)
       run: cargo build --verbose --frozen
-    - name: Build (release)
+    - name: Build (release, glibc)
       run: cargo build --release --verbose --frozen
-    - name: Run tests (debug)
+    - name: Build (debug, musl)
+      run: cargo build --verbose --frozen --target x86_64-unknown-linux-musl
+    - name: Build (release, musl)
+      run: cargo build --release --verbose --frozen --target x86_64-unknown-linux-musl
+    - name: Run tests (debug, glibc)
       run: cargo test --verbose --frozen
-    - name: Run tests (release)
+    - name: Run tests (release, glibc)
       run: cargo build --release --verbose --frozen
+    - name: Run tests (debug, musl)
+      run: cargo test --verbose --frozen --target x86_64-unknown-linux-musl
+    - name: Run tests (release, musl)
+      run: cargo build --release --verbose --frozen --target x86_64-unknown-linux-musl
