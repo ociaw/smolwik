@@ -19,6 +19,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install target
+      run: rustup target add ${{ matrix.target }}
     - name: Download dependencies
       run: cargo fetch --verbose --locked --target ${{ matrix.target }}
     - name: Check
