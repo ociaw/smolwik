@@ -1,4 +1,3 @@
-#![feature(path_add_extension)]
 #![feature(assert_matches)]
 
 mod article;
