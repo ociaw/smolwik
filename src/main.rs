@@ -75,7 +75,16 @@ async fn main() {
         renderer: Renderer::new((*config).clone()).unwrap().into(),
         config: config.clone(),
     };
+    
+    let router = build_router(state, &config);
+    
+    // run it
+    let listener = tokio::net::TcpListener::bind(&config.address).await.unwrap();
+    println!("listening on {}", listener.local_addr().unwrap());
+    axum::serve(listener, router).await.unwrap();
+}
 
+fn build_router(state: AppState, config: &Config) -> Router {
     let article_routes = routes::articles::router(state.clone());
     let auth_routes = routes::auth::router(state.clone());
     let admin_routes = routes::admin::router(state.clone());
@@ -84,7 +93,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     // build our application with a route
-    let router = Router::new()
+    Router::new()
         .nest_service("/assets", ServeDir::new(&config.assets))
         .with_state(state.clone())
         .merge(article_routes)
@@ -92,12 +101,7 @@ async fn main() {
         .merge(admin_routes)
         .merge(discovery_routes)
         .layer(from_fn_with_state(state, template_middleware))
-        .layer(TraceLayer::new_for_http());
-
-    // run it
-    let listener = tokio::net::TcpListener::bind(&config.address).await.unwrap();
-    println!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, router).await.unwrap();
+        .layer(TraceLayer::new_for_http())
 }
 
 async fn template_middleware(
@@ -188,5 +192,72 @@ trait AntiCsrfForm {
             None => false,
             Some(session_id) => self.session() == session_id,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use http_body_util::BodyExt;
+    use tower::util::ServiceExt;
+    use http::StatusCode;
+    use snafu::{OptionExt, ResultExt, Whatever};
+    use tokio::fs;
+    use testdir::testdir;
+    use crate::auth::AuthenticationMode;
+
+    #[tokio::test]
+    async fn get_index_anonymous() -> Result<(), Whatever> {
+        let router = setup(AuthenticationMode::Anonymous, Access::Authenticated).await?;
+        let request = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap();
+        let body = String::try_from(Vec::from(body.to_bytes())).ok().whatever_context("Response body is not valid UTF-8")?;
+        assert!(body.starts_with("<!DOCTYPE html>"));
+        assert!(body.contains("<h1>Welcome!</h1>"));
+        assert!(body.contains("</html>"));
+
+        Ok(())
+    }
+
+    async fn setup(auth_mode: AuthenticationMode, access: Access) -> Result<Router, Whatever> {
+        let test_dir = testdir!();
+        let articles_path = test_dir.join("articles");
+        let assets_path = test_dir.join("assets");
+        let templates_path = test_dir.join("templates");
+
+        fs::create_dir(&articles_path).await.whatever_context("Failed to create articles directory")?;
+        fs::create_dir(&assets_path).await.whatever_context("Failed to create assets directory")?;
+        fs::create_dir(&templates_path).await.whatever_context("Failed to create templates directory")?;
+        fs::copy("articles/index.md", &articles_path.join("index.md")).await.whatever_context("Failed to copy index article.")?;
+        fs::copy("templates/base.tera", &templates_path.join("base.tera")).await.whatever_context("Failed to copy base template.")?;
+        fs::copy("templates/article.tera", &templates_path.join("article.tera")).await.whatever_context("Failed to copy article template.")?;
+
+        // The config is only read once at start up, so we don't need to copy it to the temp directory.
+        let config = Config {
+            address: "".to_string(),
+            secret_key: vec![0u8; 64],
+            auth_mode,
+            create_access: access.clone(),
+            administrator_access: access.clone(),
+            discovery_access: access,
+            articles: PathBuf::from("articles/"),
+            assets: PathBuf::from("assets/"),
+            templates: "templates/**/*".to_string(),
+        };
+
+        let config = Arc::new(config);
+        let state = AppState {
+            renderer: Renderer::new((*config).clone()).unwrap().into(),
+            config: config.clone(),
+        };
+
+        Ok(build_router(state, &config))
     }
 }

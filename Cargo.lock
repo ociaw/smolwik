@@ -1302,6 +1302,7 @@ dependencies = [
  "axum-extra",
  "base64",
  "http",
+ "http-body-util",
  "pulldown-cmark",
  "rand_core",
  "serde",
@@ -1311,6 +1312,7 @@ dependencies = [
  "testdir",
  "tokio",
  "toml",
+ "tower",
  "tower-http",
  "tracing-subscriber",
 ]
