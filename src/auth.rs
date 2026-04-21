@@ -229,7 +229,7 @@ fn generate_random_token() -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
     use crate::auth::*;
 
     #[test]

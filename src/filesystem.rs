@@ -101,7 +101,7 @@ impl<'a> ReadableFile {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
     use snafu::{ResultExt, Whatever};
     use tokio::fs;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
